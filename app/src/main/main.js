@@ -610,7 +610,8 @@ function setupTabListeners(tab) {
         }
       };
     }
-    sendToUI(getWin(), 'ui-tab-created', { url: details.url, isIncognito: tab.isIncognito, space: tab.space });
+    const targetWin = getWin();
+    createTab(details.url, tab.isIncognito, tab.space, targetWin ? targetWin.id : null);
     return { action: 'deny' };
   });
 
@@ -758,13 +759,15 @@ function setupTabListeners(tab) {
       menu.append(new MenuItem({
         label: labels.openLinkNewTab,
         click: () => {
-          sendToUI(getWin(), 'ui-tab-created', { url: params.linkURL, space: tab.space });
+          const targetWin = getWin();
+          createTab(params.linkURL, false, tab.space, targetWin ? targetWin.id : null);
         }
       }));
       menu.append(new MenuItem({
         label: labels.openLinkNewIncognitoTab,
         click: () => {
-          sendToUI(getWin(), 'ui-tab-created', { url: params.linkURL, isIncognito: true, space: tab.space });
+          const targetWin = getWin();
+          createTab(params.linkURL, true, tab.space, targetWin ? targetWin.id : null);
         }
       }));
       menu.append(new MenuItem({ type: 'separator' }));
