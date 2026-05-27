@@ -15,6 +15,51 @@ function escapeHtml(value) {
   }[char]));
 }
 
+function parseMarkdown(text) {
+  if (!text) return '';
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  
+  html = html.replace(/^### (.*$)/gim, '<h4>$1</h4>');
+  html = html.replace(/^## (.*$)/gim, '<h3>$1</h3>');
+  html = html.replace(/^# (.*$)/gim, '<h2>$1</h2>');
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  
+  const lines = html.split('\n');
+  let inList = false;
+  const processedLines = [];
+  
+  for (let line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
+      if (!inList) {
+        processedLines.push('<ul class="update-notes-list">');
+        inList = true;
+      }
+      processedLines.push(`<li>${trimmed.substring(2)}</li>`);
+    } else {
+      if (inList) {
+        processedLines.push('</ul>');
+        inList = false;
+      }
+      if (trimmed) {
+        if (trimmed.startsWith('<h')) {
+          processedLines.push(trimmed);
+        } else {
+          processedLines.push(`<p>${trimmed}</p>`);
+        }
+      }
+    }
+  }
+  if (inList) {
+    processedLines.push('</ul>');
+  }
+  
+  return processedLines.join('\n');
+}
+
 // DOM Elements for Navigation & Panel Toggles
 const sidebar = document.getElementById('sidebar');
 const sidebarToggle = document.getElementById('sidebar-toggle');
@@ -1636,11 +1681,13 @@ document.getElementById('btn-check-updates')?.addEventListener('click', () => {
     if (statusMsg) statusMsg.style.display = 'none';
 
     if (info.updateAvailable) {
+      const currentVersion = document.getElementById('update-current-version');
       const modalVersion = document.getElementById('update-modal-version');
       const modalNotes = document.getElementById('update-modal-notes');
       
-      if (modalVersion) modalVersion.textContent = info.latestVersion;
-      if (modalNotes) modalNotes.textContent = info.releaseNotes;
+      if (currentVersion) currentVersion.textContent = `v${info.currentVersion || '1.2.1'}`;
+      if (modalVersion) modalVersion.textContent = `v${info.latestVersion}`;
+      if (modalNotes) modalNotes.innerHTML = parseMarkdown(info.releaseNotes);
 
       updateModal?.classList.add('open');
       sendBounds();
@@ -1760,11 +1807,13 @@ document.getElementById('btn-confirm-update')?.addEventListener('click', () => {
 function autoCheckForUpdates() {
   window.oslo.checkForUpdates().then(info => {
     if (info && info.updateAvailable) {
+      const currentVersion = document.getElementById('update-current-version');
       const modalVersion = document.getElementById('update-modal-version');
       const modalNotes = document.getElementById('update-modal-notes');
       
-      if (modalVersion) modalVersion.textContent = info.latestVersion;
-      if (modalNotes) modalNotes.textContent = info.releaseNotes;
+      if (currentVersion) currentVersion.textContent = `v${info.currentVersion || '1.2.1'}`;
+      if (modalVersion) modalVersion.textContent = `v${info.latestVersion}`;
+      if (modalNotes) modalNotes.innerHTML = parseMarkdown(info.releaseNotes);
 
       updateModal?.classList.add('open');
       sendBounds();

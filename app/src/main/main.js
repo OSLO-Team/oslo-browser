@@ -1,4 +1,4 @@
-const { app, BrowserWindow, WebContentsView, ipcMain, session, shell, dialog, safeStorage } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, session, shell, dialog, safeStorage, net } = require('electron');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const crypto = require('crypto');
@@ -193,7 +193,7 @@ async function checkPasswordBreach(password) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
-    const response = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
+    const response = await net.fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
       headers: {
         'User-Agent': 'oslo-browser-password-audit',
         'Add-Padding': 'true'
@@ -1140,7 +1140,9 @@ function saveSession() {
 // Download manager handler
 function setupDownloadListener(sessionInstance, isIncognito = false) {
   sessionInstance.on('will-download', (event, item, webContents) => {
-    const fileName = item.getFilename();
+    const fs = require('fs');
+    const rawFileName = item.getFilename() || 'download';
+    const fileName = rawFileName.replace(/[\\/:*?"<>|]/g, '_');
     const totalBytes = item.getTotalBytes();
     const downloadId = Date.now();
     const dangerousExtensions = new Set(['exe', 'msi', 'bat', 'cmd', 'ps1', 'vbs', 'js', 'jar', 'scr', 'com', 'reg']);
@@ -1177,7 +1179,16 @@ function setupDownloadListener(sessionInstance, isIncognito = false) {
 
     const lang = settingsStore.get('language') || 'tr';
     const title = lang === 'tr' ? 'Farklı Kaydet' : (lang === 'fr' ? 'Enregistrer sous' : 'Save As');
-    const defaultPath = path.join(app.getPath('downloads'), fileName);
+    
+    const downloadsDir = app.getPath('downloads');
+    if (!fs.existsSync(downloadsDir)) {
+      try {
+        fs.mkdirSync(downloadsDir, { recursive: true });
+      } catch (err) {
+        console.error('[Download Manager] Failed to create downloads directory:', err);
+      }
+    }
+    const defaultPath = path.join(downloadsDir, fileName);
 
     console.log(`[Download Manager] Save dialog default path: ${defaultPath}`);
 
@@ -1730,7 +1741,7 @@ async function resolveReleaseSha256(release, winAsset) {
   if (!checksumAsset) return '';
 
   try {
-    const response = await fetch(checksumAsset.browser_download_url, {
+    const response = await net.fetch(checksumAsset.browser_download_url, {
       headers: { 'User-Agent': 'oslo-browser-updater' }
     });
     if (!response.ok) return '';
@@ -1848,7 +1859,7 @@ ipcMain.handle('check-for-updates', async (event) => {
   assertMainUiSender(event);
   const currentVersion = app.getVersion();
   try {
-    const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+    const response = await net.fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
       headers: {
         'User-Agent': 'oslo-browser-updater'
       }
@@ -1910,7 +1921,7 @@ ipcMain.handle('download-update', async (event, { url, version, sha256 }) => {
   
   const win = BrowserWindow.fromWebContents(event.sender);
   const tempDir = os.tmpdir();
-  const installerPath = path.join(tempDir, `OSLO-Browser-${version}-Setup.exe`);
+  const installerPath = path.join(tempDir, `OSLO-Browser-${version}-Setup-${Date.now()}.exe`);
   
   try {
     if (!isValidUpdateVersion(version)) {
@@ -1924,7 +1935,7 @@ ipcMain.handle('download-update', async (event, { url, version, sha256 }) => {
     }
 
     // Fetch automatically handles HTTP/HTTPS redirects out-of-the-box
-    const response = await fetch(url, {
+    const response = await net.fetch(url, {
       headers: {
         'User-Agent': 'oslo-browser-updater'
       }

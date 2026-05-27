@@ -184,7 +184,6 @@ function updateAppearanceControl(key, value) {
     activeTabStyle: ['settings-active-tab-style', 'value'],
     tabHeight: ['settings-tab-height', 'value'],
     sidebarAutoHide: ['settings-sidebar-auto-hide', 'checked'],
-    sidebarIconOnly: ['settings-sidebar-icon-only', 'checked'],
     sidebarWidth: ['settings-sidebar-width', 'value'],
     topBarAutoHide: ['settings-topbar-auto-hide', 'checked'],
     uiFontSize: ['settings-ui-font-size', 'value'],
@@ -856,7 +855,6 @@ export function initSettings() {
 
   bindAppearanceCheckbox('settings-compact-mode', 'compactMode');
   bindAppearanceCheckbox('settings-sidebar-auto-hide', 'sidebarAutoHide');
-  bindAppearanceCheckbox('settings-sidebar-icon-only', 'sidebarIconOnly');
   bindAppearanceCheckbox('settings-topbar-auto-hide', 'topBarAutoHide');
   bindAppearanceCheckbox('settings-reduce-motion', 'reduceMotion');
   bindAppearanceCheckbox('settings-transparency-enabled', 'transparencyEnabled');
