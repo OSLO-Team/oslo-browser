@@ -788,6 +788,11 @@ function setupTabListeners(tab) {
     }
     menu.popup({ window: getWin() });
   });
+
+  wc.on('close', (e) => {
+    e.preventDefault();
+    closeTab(tabId);
+  });
 }
 
 // Helpers for Tab management
@@ -893,18 +898,78 @@ function destroyTab(tabId) {
   const tab = tabs[tabId];
   if (!tab) return;
 
+  // Remove from tabs map first to prevent re-entry / infinite loops
+  delete tabs[tabId];
+
   if (tab.view) {
     const win = BrowserWindow.fromId(tab.windowId);
-    if (win && win.contentView.children.includes(tab.view)) {
-      win.contentView.removeChildView(tab.view);
+    try {
+      if (win && win.contentView.children.includes(tab.view)) {
+        win.contentView.removeChildView(tab.view);
+      }
+    } catch (e) {
+      console.error('Error removing child view:', e);
     }
     // Clean up webContents
-    tab.view.webContents.close();
+    try {
+      if (!tab.view.webContents.isDestroyed()) {
+        tab.view.webContents.close();
+      }
+    } catch (e) {
+      console.error('Error closing webContents:', e);
+    }
   }
   if (tab.windowId && tabOrders[tab.windowId]) {
     tabOrders[tab.windowId] = tabOrders[tab.windowId].filter(id => id !== tabId);
   }
-  delete tabs[tabId];
+}
+
+function closeTab(tabId) {
+  const tab = tabs[tabId];
+  if (!tab) return;
+  const win = BrowserWindow.fromId(tab.windowId);
+  if (!win) return;
+
+  const wasActive = (activeTabs[win.id] === tabId);
+  const closedTabSpace = tab.space || 'Genel';
+
+  destroyTab(tabId);
+  sendToUI(win, 'ui-tab-closed', tabId);
+
+  // If active tab was closed, select another tab if possible
+  if (wasActive) {
+    let windowOrder = tabOrders[win.id] || [];
+    let tabIds = windowOrder.filter(id => tabs[id] && tabs[id].space === closedTabSpace);
+    if (tabIds.length === 0) {
+      tabIds = Object.keys(tabs).filter(id => tabs[id].windowId === win.id && tabs[id].space === closedTabSpace);
+    }
+
+    if (tabIds.length > 0) {
+      selectTab(tabIds[tabIds.length - 1]);
+    } else {
+      let remainingAll = windowOrder.filter(id => tabs[id]);
+      if (remainingAll.length === 0) {
+        remainingAll = Object.keys(tabs).filter(id => tabs[id].windowId === win.id);
+      }
+
+      if (remainingAll.length > 0) {
+        selectTab(remainingAll[remainingAll.length - 1]);
+      } else {
+        activeTabs[win.id] = null;
+        const newTab = createTab(null, false, closedTabSpace, win.id);
+        sendToUI(win, 'ui-tab-created', {
+          id: newTab.id,
+          url: newTab.url,
+          title: newTab.title,
+          isLoading: newTab.isLoading,
+          isIncognito: newTab.isIncognito,
+          space: newTab.space
+        });
+        selectTab(newTab.id);
+      }
+    }
+  }
+  saveSession();
 }
 
 async function sleepTab(tabId) {
@@ -1354,51 +1419,7 @@ ipcMain.on('tabs-reorder', (event, tabIds) => {
 
 ipcMain.on('tab-close', (event, tabId) => {
   if (ignoreUntrustedMainUiSender(event, 'tab-close')) return;
-  const tab = tabs[tabId];
-  if (!tab) return;
-  const win = BrowserWindow.fromId(tab.windowId);
-  if (!win) return;
-
-  const wasActive = (activeTabs[win.id] === tabId);
-  const closedTabSpace = tab.space || 'Genel';
-
-  destroyTab(tabId);
-  sendToUI(win, 'ui-tab-closed', tabId);
-
-  // If active tab was closed, select another tab if possible
-  if (wasActive) {
-    let windowOrder = tabOrders[win.id] || [];
-    let tabIds = windowOrder.filter(id => tabs[id] && tabs[id].space === closedTabSpace);
-    if (tabIds.length === 0) {
-      tabIds = Object.keys(tabs).filter(id => tabs[id].windowId === win.id && tabs[id].space === closedTabSpace);
-    }
-
-    if (tabIds.length > 0) {
-      selectTab(tabIds[tabIds.length - 1]);
-    } else {
-      let remainingAll = windowOrder.filter(id => tabs[id]);
-      if (remainingAll.length === 0) {
-        remainingAll = Object.keys(tabs).filter(id => tabs[id].windowId === win.id);
-      }
-
-      if (remainingAll.length > 0) {
-        selectTab(remainingAll[remainingAll.length - 1]);
-      } else {
-        activeTabs[win.id] = null;
-        const newTab = createTab(null, false, closedTabSpace, win.id);
-        sendToUI(win, 'ui-tab-created', {
-          id: newTab.id,
-          url: newTab.url,
-          title: newTab.title,
-          isLoading: newTab.isLoading,
-          isIncognito: newTab.isIncognito,
-          space: newTab.space
-        });
-        selectTab(newTab.id);
-      }
-    }
-  }
-  saveSession();
+  closeTab(tabId);
 });
 
 ipcMain.on('tab-select', (event, tabId) => {
