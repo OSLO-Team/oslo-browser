@@ -740,6 +740,14 @@ function runPasswordManager() {
 // ─── INITIAL LIFECYCLE EXECUTION ───────────────────────────────────────────────
 if (window.location.protocol === 'http:' || window.location.protocol === 'https:' || window.location.protocol === 'file:') {
   runPasswordManager();
+
+  // Focus tracking for split screen
+  window.addEventListener('focus', () => {
+    ipcRenderer.send('tab-view-focus');
+  });
+  window.addEventListener('click', () => {
+    ipcRenderer.send('tab-view-focus');
+  });
 }
 
 let adBlockEnabled = false;
@@ -1121,6 +1129,16 @@ const osloApi = {
     const listener = (event, data) => callback(data);
     ipcRenderer.on('ui-zoom-changed', listener);
     return () => ipcRenderer.removeListener('ui-zoom-changed', listener);
+  },
+
+  // Split Screen APIs
+  toggleSplitScreen: (tabId) => {
+    if (asTabId(tabId)) ipcRenderer.send('tab-toggle-split', tabId);
+  },
+  onSplitSideFocused: (callback) => {
+    const listener = (event, data) => callback(data);
+    ipcRenderer.on('ui-split-side-focused', listener);
+    return () => ipcRenderer.removeListener('ui-split-side-focused', listener);
   }
 };
 

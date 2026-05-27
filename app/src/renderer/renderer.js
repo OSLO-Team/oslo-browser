@@ -210,7 +210,7 @@ if (navBack) {
 }
 
 if (navForward) {
-  navForward.addEventListener('click', () => {
+    navForward.addEventListener('click', () => {
     if (state.activeTabId) window.oslo.goForward(state.activeTabId);
   });
 }
@@ -218,6 +218,13 @@ if (navForward) {
 if (navReload) {
   navReload.addEventListener('click', () => {
     if (state.activeTabId) window.oslo.reload(state.activeTabId);
+  });
+}
+
+const navSplit = document.getElementById('nav-split');
+if (navSplit) {
+  navSplit.addEventListener('click', () => {
+    if (state.activeTabId) window.oslo.toggleSplitScreen(state.activeTabId);
   });
 }
 
@@ -549,6 +556,7 @@ window.oslo.onTabUpdated((tabUpdate) => {
         updateZoomUI();
       }
       updateNavButtonsState();
+      updateSplitUI();
     }
 
     renderTabs();
@@ -586,6 +594,7 @@ window.oslo.onTabSelected((tabId) => {
     updateSecurityIndicator();
     updateNavButtonsState();
     updateZoomUI();
+    updateSplitUI();
     renderSpaces();
 
     // Auto-dismiss permission bar when switching tabs
@@ -608,6 +617,43 @@ window.oslo.onZoomChanged(({ tabId, zoom }) => {
     }
   }
 });
+
+// Handle Split Side Focused Event
+window.oslo.onSplitSideFocused(({ tabId, side }) => {
+  if (state.tabs[tabId]) {
+    state.tabs[tabId].activeSplitSide = side;
+    if (tabId === state.activeTabId) {
+      updateSplitUI();
+    }
+  }
+});
+
+function updateSplitUI() {
+  const activeTab = state.tabs[state.activeTabId];
+  const navSplit = document.getElementById('nav-split');
+  const indicatorBar = document.getElementById('split-indicator-bar');
+  const leftHalf = document.getElementById('split-indicator-left');
+  const rightHalf = document.getElementById('split-indicator-right');
+
+  if (activeTab && activeTab.hasSplit) {
+    navSplit?.classList.add('active');
+    indicatorBar?.classList.add('active');
+    if (leftHalf && rightHalf) {
+      if (activeTab.activeSplitSide === 'split') {
+        leftHalf.classList.remove('focused');
+        rightHalf.classList.add('focused');
+      } else {
+        leftHalf.classList.add('focused');
+        rightHalf.classList.remove('focused');
+      }
+    }
+  } else {
+    navSplit?.classList.remove('active');
+    indicatorBar?.classList.remove('active');
+    leftHalf?.classList.remove('focused');
+    rightHalf?.classList.remove('focused');
+  }
+}
 
 // Update Zoom level UI badge
 function updateZoomUI() {
@@ -2482,3 +2528,14 @@ if (spaceDeleteModal) {
     }
   });
 }
+
+// Global shortcut for Split Screen (Ctrl + \)
+window.addEventListener('keydown', (e) => {
+  const isControl = navigator.platform.includes('Mac') ? e.metaKey : e.ctrlKey;
+  if (isControl && e.key === '\\') {
+    e.preventDefault();
+    if (state.activeTabId) {
+      window.oslo.toggleSplitScreen(state.activeTabId);
+    }
+  }
+});

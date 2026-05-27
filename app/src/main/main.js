@@ -477,30 +477,41 @@ function createMainWindow() {
   return win;
 }
 
-// Setup common listeners for a tab's webContents
-function setupTabListeners(tab) {
-  if (!tab.view) return;
-  const wc = tab.view.webContents;
+function setupViewListeners(tab, view, isSplitSide) {
+  if (!view) return;
+  const wc = view.webContents;
   const tabId = tab.id;
   const getWin = () => BrowserWindow.fromId(tab.windowId);
 
   wc.on('did-start-loading', () => {
-    tab.isLoading = true;
-    sendToUI(getWin(), 'ui-tab-updated', { id: tabId, isLoading: true });
+    const isActive = isSplitSide ? (tab.activeSplitSide === 'split') : (tab.activeSplitSide === 'main');
+    if (isSplitSide) tab.isSplitLoading = true;
+    else tab.isLoading = true;
+    
+    if (isActive) {
+      sendToUI(getWin(), 'ui-tab-updated', { id: tabId, isLoading: true });
+    }
   });
 
   wc.on('did-stop-loading', () => {
-    tab.isLoading = false;
-    sendToUI(getWin(), 'ui-tab-updated', { id: tabId, isLoading: false });
+    const isActive = isSplitSide ? (tab.activeSplitSide === 'split') : (tab.activeSplitSide === 'main');
+    if (isSplitSide) tab.isSplitLoading = false;
+    else tab.isLoading = false;
+    
+    if (isActive) {
+      sendToUI(getWin(), 'ui-tab-updated', { id: tabId, isLoading: false });
+    }
   });
 
   wc.on('page-title-updated', (event, title) => {
-    tab.title = title;
-    sendToUI(getWin(), 'ui-tab-updated', { id: tabId, title: title });
+    if (!isSplitSide) {
+      tab.title = title;
+      sendToUI(getWin(), 'ui-tab-updated', { id: tabId, title: title });
+    }
   });
 
   wc.on('page-favicon-updated', (event, favicons) => {
-    if (favicons && favicons.length > 0) {
+    if (!isSplitSide && favicons && favicons.length > 0) {
       tab.favicon = favicons[0];
       sendToUI(getWin(), 'ui-tab-updated', { id: tabId, favicon: favicons[0] });
 
@@ -517,31 +528,38 @@ function setupTabListeners(tab) {
   });
 
   wc.on('did-navigate', (event, newUrl) => {
-    tab.url = newUrl;
+    if (isSplitSide) {
+      tab.splitUrl = newUrl;
+    } else {
+      tab.url = newUrl;
+    }
     tab.canGoBack = wc.canGoBack();
     tab.canGoForward = wc.canGoForward();
 
-    // Check favicon cache
     let newFavicon = null;
-    try {
-      const domain = new URL(newUrl).hostname;
-      if (domain) {
-        const cache = faviconCacheStore.get('cache') || {};
-        if (cache[domain]) {
-          newFavicon = cache[domain];
+    if (!isSplitSide) {
+      try {
+        const domain = new URL(newUrl).hostname;
+        if (domain) {
+          const cache = faviconCacheStore.get('cache') || {};
+          if (cache[domain]) {
+            newFavicon = cache[domain];
+          }
         }
-      }
-    } catch (e) { }
+      } catch (e) { }
+      tab.favicon = newFavicon;
+    }
 
-    tab.favicon = newFavicon;
-
-    sendToUI(getWin(), 'ui-tab-updated', {
-      id: tabId,
-      url: newUrl,
-      canGoBack: tab.canGoBack,
-      canGoForward: tab.canGoForward,
-      favicon: newFavicon
-    });
+    const isActive = isSplitSide ? (tab.activeSplitSide === 'split') : (tab.activeSplitSide === 'main');
+    if (isActive) {
+      sendToUI(getWin(), 'ui-tab-updated', {
+        id: tabId,
+        url: newUrl,
+        canGoBack: tab.canGoBack,
+        canGoForward: tab.canGoForward,
+        favicon: isSplitSide ? undefined : newFavicon
+      });
+    }
 
     // Add to history if not incognito
     if (!tab.isIncognito && !newUrl.includes('newtab.html') && !newUrl.startsWith('file://')) {
@@ -573,15 +591,23 @@ function setupTabListeners(tab) {
   });
 
   wc.on('did-navigate-in-page', (event, newUrl) => {
-    tab.url = newUrl;
+    if (isSplitSide) {
+      tab.splitUrl = newUrl;
+    } else {
+      tab.url = newUrl;
+    }
     tab.canGoBack = wc.canGoBack();
     tab.canGoForward = wc.canGoForward();
-    sendToUI(getWin(), 'ui-tab-updated', {
-      id: tabId,
-      url: newUrl,
-      canGoBack: tab.canGoBack,
-      canGoForward: tab.canGoForward
-    });
+
+    const isActive = isSplitSide ? (tab.activeSplitSide === 'split') : (tab.activeSplitSide === 'main');
+    if (isActive) {
+      sendToUI(getWin(), 'ui-tab-updated', {
+        id: tabId,
+        url: newUrl,
+        canGoBack: tab.canGoBack,
+        canGoForward: tab.canGoForward
+      });
+    }
     saveSession();
   });
 
@@ -595,11 +621,14 @@ function setupTabListeners(tab) {
   });
 
   wc.on('media-stopped-playing', () => {
-    tab.isPlayingAudio = false;
-    sendToUI(getWin(), 'ui-tab-updated', { id: tabId, isPlayingAudio: false });
+    const otherView = isSplitSide ? tab.view : tab.splitView;
+    const otherPlaying = otherView && otherView.webContents && otherView.webContents.isAudioActive();
+    if (!otherPlaying) {
+      tab.isPlayingAudio = false;
+      sendToUI(getWin(), 'ui-tab-updated', { id: tabId, isPlayingAudio: false });
+    }
   });
 
-  // Support open-link-in-new-window (target="_blank") and popups
   wc.setWindowOpenHandler((details) => {
     if (details.features) {
       return {
@@ -619,7 +648,6 @@ function setupTabListeners(tab) {
     return { action: 'deny' };
   });
 
-  // Intercept Keyboard Shortcuts inside page views
   wc.on('before-input-event', (event, input) => {
     if (input.type === 'keyDown') {
       const isControl = process.platform === 'darwin' ? input.meta : input.control;
@@ -799,6 +827,12 @@ function setupTabListeners(tab) {
   });
 }
 
+function setupTabListeners(tab) {
+  if (tab.view) {
+    setupViewListeners(tab, tab.view, false);
+  }
+}
+
 // Helpers for Tab management
 function createTab(url, isIncognito = false, space = 'Genel', winId = null, tabId = null, isPinned = false, zoomFactor = null) {
   const finalTabId = tabId || ('tab_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9));
@@ -823,6 +857,9 @@ function createTab(url, isIncognito = false, space = 'Genel', winId = null, tabI
   const tab = {
     id: finalTabId,
     view: view,
+    splitView: null,
+    splitUrl: '',
+    activeSplitSide: 'main',
     url: url || '',
     title: defaultTitle,
     isLoading: false,
@@ -906,8 +943,8 @@ function destroyTab(tabId) {
   // Remove from tabs map first to prevent re-entry / infinite loops
   delete tabs[tabId];
 
+  const win = BrowserWindow.fromId(tab.windowId);
   if (tab.view) {
-    const win = BrowserWindow.fromId(tab.windowId);
     try {
       if (win && win.contentView.children.includes(tab.view)) {
         win.contentView.removeChildView(tab.view);
@@ -924,6 +961,24 @@ function destroyTab(tabId) {
       console.error('Error closing webContents:', e);
     }
   }
+
+  if (tab.splitView) {
+    try {
+      if (win && win.contentView.children.includes(tab.splitView)) {
+        win.contentView.removeChildView(tab.splitView);
+      }
+    } catch (e) {
+      console.error('Error removing split view:', e);
+    }
+    try {
+      if (!tab.splitView.webContents.isDestroyed()) {
+        tab.splitView.webContents.close();
+      }
+    } catch (e) {
+      console.error('Error closing split webContents:', e);
+    }
+  }
+
   if (tab.windowId && tabOrders[tab.windowId]) {
     tabOrders[tab.windowId] = tabOrders[tab.windowId].filter(id => id !== tabId);
   }
@@ -1060,10 +1115,14 @@ function selectTab(tabId) {
 
   const prevActiveTabId = activeTabs[win.id];
 
-  // Remove previous active view of THIS window from win.contentView
-  if (prevActiveTabId && tabs[prevActiveTabId] && tabs[prevActiveTabId].view) {
-    if (win.contentView.children.includes(tabs[prevActiveTabId].view)) {
-      win.contentView.removeChildView(tabs[prevActiveTabId].view);
+  // Remove previous active views of THIS window from win.contentView
+  if (prevActiveTabId && tabs[prevActiveTabId]) {
+    const prevTab = tabs[prevActiveTabId];
+    if (prevTab.view && win.contentView.children.includes(prevTab.view)) {
+      win.contentView.removeChildView(prevTab.view);
+    }
+    if (prevTab.splitView && win.contentView.children.includes(prevTab.splitView)) {
+      win.contentView.removeChildView(prevTab.splitView);
     }
   }
 
@@ -1071,24 +1130,50 @@ function selectTab(tabId) {
 
   const bounds = windowBounds[win.id] || { x: 0, y: 0, width: 0, height: 0 };
 
-  if (bounds.width > 0 && bounds.height > 0 && tab.view) {
-    if (!win.contentView.children.includes(tab.view)) {
-      win.contentView.addChildView(tab.view);
+  if (bounds.width > 0 && bounds.height > 0) {
+    if (tab.view) {
+      if (!win.contentView.children.includes(tab.view)) {
+        win.contentView.addChildView(tab.view);
+      }
+      if (tab.splitView) {
+        tab.view.setBounds({
+          x: bounds.x,
+          y: bounds.y,
+          width: Math.floor(bounds.width / 2),
+          height: bounds.height
+        });
+      } else {
+        tab.view.setBounds(bounds);
+      }
     }
-    tab.view.setBounds(bounds);
+    if (tab.splitView) {
+      if (!win.contentView.children.includes(tab.splitView)) {
+        win.contentView.addChildView(tab.splitView);
+      }
+      tab.splitView.setBounds({
+        x: bounds.x + Math.floor(bounds.width / 2),
+        y: bounds.y,
+        width: Math.ceil(bounds.width / 2),
+        height: bounds.height
+      });
+    }
   }
 
-  // Focus the new web contents
-  if (tab.view) {
-    tab.view.webContents.focus();
-    tab.canGoBack = tab.view.webContents.canGoBack();
-    tab.canGoForward = tab.view.webContents.canGoForward();
+  // Focus the active web contents
+  const activeWc = (tab.activeSplitSide === 'split' && tab.splitView) ? tab.splitView.webContents : (tab.view ? tab.view.webContents : null);
+  if (activeWc) {
+    activeWc.focus();
+    tab.canGoBack = activeWc.canGoBack();
+    tab.canGoForward = activeWc.canGoForward();
   }
 
   sendToUI(win, 'ui-tab-updated', {
     id: tabId,
+    url: (tab.activeSplitSide === 'split' && tab.splitView) ? tab.splitUrl : tab.url,
     canGoBack: tab.canGoBack || false,
-    canGoForward: tab.canGoForward || false
+    canGoForward: tab.canGoForward || false,
+    hasSplit: !!tab.splitView,
+    activeSplitSide: tab.activeSplitSide
   });
 
   sendToUI(win, 'ui-tab-selected', tabId);
@@ -1140,7 +1225,10 @@ function isMainUiSender(event) {
 }
 
 function getSenderTab(event) {
-  return Object.values(tabs).find(tab => tab.view && tab.view.webContents === event.sender) || null;
+  return Object.values(tabs).find(tab => 
+    (tab.view && tab.view.webContents === event.sender) || 
+    (tab.splitView && tab.splitView.webContents === event.sender)
+  ) || null;
 }
 
 function isKnownTabSender(event) {
@@ -1432,10 +1520,17 @@ ipcMain.on('tab-navigate', (event, { tabId, url }) => {
       wakeTab(tabId);
     }
     const targetUrl = (url || '').trim();
-    if (targetUrl === 'oslo://newtab' || targetUrl === '') {
-      tab.view.webContents.loadFile(path.join(__dirname, '../newtab/newtab.html'));
+    const isSplit = tab.activeSplitSide === 'split' && tab.splitView;
+    const targetView = isSplit ? tab.splitView : tab.view;
+    if (isSplit) {
+      tab.splitUrl = targetUrl;
     } else {
-      tab.view.webContents.loadURL(formatUrl(targetUrl));
+      tab.url = targetUrl;
+    }
+    if (targetUrl === 'oslo://newtab' || targetUrl === '') {
+      targetView.webContents.loadFile(path.join(__dirname, '../newtab/newtab.html'));
+    } else {
+      targetView.webContents.loadURL(formatUrl(targetUrl));
     }
   }
 });
@@ -1443,24 +1538,36 @@ ipcMain.on('tab-navigate', (event, { tabId, url }) => {
 ipcMain.on('tab-back', (event, tabId) => {
   if (ignoreUntrustedMainUiSender(event, 'tab-back')) return;
   const tab = tabs[tabId];
-  if (tab && tab.view && tab.view.webContents.canGoBack()) {
-    tab.view.webContents.goBack();
+  if (tab) {
+    const isSplit = tab.activeSplitSide === 'split' && tab.splitView;
+    const targetView = isSplit ? tab.splitView : tab.view;
+    if (targetView && targetView.webContents.canGoBack()) {
+      targetView.webContents.goBack();
+    }
   }
 });
 
 ipcMain.on('tab-forward', (event, tabId) => {
   if (ignoreUntrustedMainUiSender(event, 'tab-forward')) return;
   const tab = tabs[tabId];
-  if (tab && tab.view && tab.view.webContents.canGoForward()) {
-    tab.view.webContents.goForward();
+  if (tab) {
+    const isSplit = tab.activeSplitSide === 'split' && tab.splitView;
+    const targetView = isSplit ? tab.splitView : tab.view;
+    if (targetView && targetView.webContents.canGoForward()) {
+      targetView.webContents.goForward();
+    }
   }
 });
 
 ipcMain.on('tab-reload', (event, tabId) => {
   if (ignoreUntrustedMainUiSender(event, 'tab-reload')) return;
   const tab = tabs[tabId];
-  if (tab && tab.view) {
-    tab.view.webContents.reload();
+  if (tab) {
+    const isSplit = tab.activeSplitSide === 'split' && tab.splitView;
+    const targetView = isSplit ? tab.splitView : tab.view;
+    if (targetView) {
+      targetView.webContents.reload();
+    }
   }
 });
 
@@ -1514,8 +1621,10 @@ ipcMain.on('tab-set-zoom', (event, { tabId, zoom }) => {
   const tab = tabs[tabId];
   if (tab) {
     tab.zoomFactor = zoom;
-    if (tab.view && !tab.isSleeping && tab.view.webContents) {
-      tab.view.webContents.setZoomFactor(zoom);
+    const isSplit = tab.activeSplitSide === 'split' && tab.splitView;
+    const targetView = isSplit ? tab.splitView : tab.view;
+    if (targetView && !tab.isSleeping && targetView.webContents) {
+      targetView.webContents.setZoomFactor(zoom);
     }
     const win = BrowserWindow.fromId(tab.windowId);
     sendToUI(win, 'ui-zoom-changed', { tabId, zoom });
@@ -1537,18 +1646,187 @@ ipcMain.on('tab-bounds', (event, bounds) => {
   };
 
   const activeId = activeTabs[win.id];
-  if (activeId && tabs[activeId] && tabs[activeId].view) {
+  if (activeId && tabs[activeId]) {
     const tab = tabs[activeId];
     if (windowBounds[win.id].width === 0 && windowBounds[win.id].height === 0) {
-      if (win.contentView.children.includes(tab.view)) {
+      if (tab.view && win.contentView.children.includes(tab.view)) {
         win.contentView.removeChildView(tab.view);
       }
-    } else {
-      if (!win.contentView.children.includes(tab.view)) {
-        win.contentView.addChildView(tab.view);
+      if (tab.splitView && win.contentView.children.includes(tab.splitView)) {
+        win.contentView.removeChildView(tab.splitView);
       }
+    } else {
+      if (tab.view) {
+        if (!win.contentView.children.includes(tab.view)) {
+          win.contentView.addChildView(tab.view);
+        }
+        if (tab.splitView) {
+          tab.view.setBounds({
+            x: windowBounds[win.id].x,
+            y: windowBounds[win.id].y,
+            width: Math.floor(windowBounds[win.id].width / 2),
+            height: windowBounds[win.id].height
+          });
+        } else {
+          tab.view.setBounds(windowBounds[win.id]);
+        }
+      }
+      if (tab.splitView) {
+        if (!win.contentView.children.includes(tab.splitView)) {
+          win.contentView.addChildView(tab.splitView);
+        }
+        tab.splitView.setBounds({
+          x: windowBounds[win.id].x + Math.floor(windowBounds[win.id].width / 2),
+          y: windowBounds[win.id].y,
+          width: Math.ceil(windowBounds[win.id].width / 2),
+          height: windowBounds[win.id].height
+        });
+      }
+    }
+  }
+});
+
+ipcMain.on('tab-toggle-split', (event, tabId) => {
+  if (ignoreUntrustedMainUiSender(event, 'tab-toggle-split')) return;
+  const tab = tabs[tabId];
+  if (!tab) return;
+
+  const win = BrowserWindow.fromId(tab.windowId);
+
+  if (tab.splitView) {
+    const splitUrl = tab.splitUrl;
+    const isRealUrl = splitUrl && !splitUrl.includes('newtab.html') && splitUrl !== 'oslo://newtab';
+
+    // Turn split screen OFF
+    if (win && win.contentView.children.includes(tab.splitView)) {
+      win.contentView.removeChildView(tab.splitView);
+    }
+    try {
+      if (!tab.splitView.webContents.isDestroyed()) {
+        tab.splitView.webContents.close();
+      }
+    } catch (e) {
+      console.error('[Split Screen] Error closing split webContents:', e);
+    }
+    tab.splitView = null;
+    tab.splitUrl = '';
+    tab.activeSplitSide = 'main';
+
+    if (win && activeTabs[win.id] === tab.id && windowBounds[win.id]) {
       tab.view.setBounds(windowBounds[win.id]);
     }
+
+    if (tab.view && tab.view.webContents) {
+      tab.view.webContents.focus();
+    }
+
+    sendToUI(win, 'ui-tab-updated', {
+      id: tab.id,
+      url: tab.url,
+      canGoBack: tab.view ? tab.view.webContents.canGoBack() : false,
+      canGoForward: tab.view ? tab.view.webContents.canGoForward() : false,
+      hasSplit: false
+    });
+    sendToUI(win, 'ui-split-side-focused', { tabId: tab.id, side: 'main' });
+
+    // Spawn a new tab in the background for the split view site!
+    if (isRealUrl && win) {
+      const newTab = createTab(splitUrl, tab.isIncognito, tab.space, win.id);
+      sendToUI(win, 'ui-tab-created', {
+        id: newTab.id,
+        url: newTab.url,
+        title: newTab.title,
+        isLoading: newTab.isLoading,
+        isIncognito: newTab.isIncognito,
+        space: newTab.space,
+        isPinned: newTab.isPinned,
+        zoomFactor: newTab.zoomFactor,
+        favicon: newTab.favicon || null
+      });
+      
+      // Force UI back to the current tab, since ui-tab-created sets activeTabId in the renderer
+      sendToUI(win, 'ui-tab-selected', tab.id);
+      
+      saveSession();
+    }
+  } else {
+    // Turn split screen ON
+    const viewSession = getSessionForSpace(tab.space, tab.isIncognito);
+    const splitView = new WebContentsView({
+      webPreferences: {
+        preload: path.join(__dirname, '../preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        session: viewSession,
+        plugins: true
+      }
+    });
+
+    tab.splitView = splitView;
+    tab.splitUrl = 'oslo://newtab';
+    tab.activeSplitSide = 'split';
+
+    setupViewListeners(tab, splitView, true);
+
+    splitView.webContents.loadFile(path.join(__dirname, '../newtab/newtab.html'));
+
+    const defaultZoom = parseFloat(settingsStore.get('defaultPageZoom')) || 1.0;
+    splitView.webContents.setZoomFactor(tab.zoomFactor || defaultZoom);
+
+    if (win && activeTabs[win.id] === tab.id && windowBounds[win.id]) {
+      const bounds = windowBounds[win.id];
+      tab.view.setBounds({
+        x: bounds.x,
+        y: bounds.y,
+        width: Math.floor(bounds.width / 2),
+        height: bounds.height
+      });
+      win.contentView.addChildView(splitView);
+      splitView.setBounds({
+        x: bounds.x + Math.floor(bounds.width / 2),
+        y: bounds.y,
+        width: Math.ceil(bounds.width / 2),
+        height: bounds.height
+      });
+    }
+
+    splitView.webContents.focus();
+
+    sendToUI(win, 'ui-tab-updated', {
+      id: tab.id,
+      url: tab.splitUrl,
+      canGoBack: false,
+      canGoForward: false,
+      hasSplit: true
+    });
+    sendToUI(win, 'ui-split-side-focused', { tabId: tab.id, side: 'split' });
+  }
+});
+
+ipcMain.on('tab-view-focus', (event) => {
+  const tab = Object.values(tabs).find(t => 
+    (t.view && t.view.webContents === event.sender) || 
+    (t.splitView && t.splitView.webContents === event.sender)
+  );
+  if (!tab) return;
+  const side = (tab.splitView && tab.splitView.webContents === event.sender) ? 'split' : 'main';
+  if (tab.activeSplitSide !== side) {
+    tab.activeSplitSide = side;
+    const win = BrowserWindow.fromId(tab.windowId);
+    const activeWc = side === 'split' ? tab.splitView.webContents : tab.view.webContents;
+    
+    if (activeWc && !activeWc.isFocused()) {
+      activeWc.focus();
+    }
+
+    sendToUI(win, 'ui-split-side-focused', { tabId: tab.id, side: side });
+    
+    sendToUI(win, 'ui-tab-updated', {
+      id: tab.id,
+      url: side === 'split' ? tab.splitUrl : tab.url,
+      canGoBack: activeWc.canGoBack(),
+      canGoForward: activeWc.canGoForward()
+    });
   }
 });
 
