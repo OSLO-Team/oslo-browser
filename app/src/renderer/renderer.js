@@ -1562,7 +1562,7 @@ document.getElementById('btn-cancel-update')?.addEventListener('click', closeUpd
 
 document.getElementById('btn-confirm-update')?.addEventListener('click', () => {
   const url = updateModal?.dataset.downloadUrl;
-  const version = document.getElementById('update-modal-version')?.textContent || '1.1.0';
+  const version = document.getElementById('update-modal-version')?.textContent || '1.1.1';
   
   if (!url) {
     window.oslo.openExternalLink('https://oslobrowser.com/download');
