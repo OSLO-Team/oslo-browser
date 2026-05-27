@@ -2715,25 +2715,43 @@ body.topbar-auto-hide .bookmarks-bar {
   display: none;
 }
 
-#sidebar.collapsed .tab-item.playing-audio:not(:hover) .tab-audio-btn,
-#sidebar.collapsed .tab-item.muted:not(:hover) .tab-audio-btn {
+#sidebar.collapsed .tab-item.playing-audio .tab-audio-btn,
+#sidebar.collapsed .tab-item.muted .tab-audio-btn {
   display: flex;
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 4px;
+  left: 6px;
   margin-left: 0;
-  z-index: 5;
-  font-size: 12px;
+  z-index: 15;
+  width: 14px;
+  height: 14px;
+  font-size: 8px;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(17, 18, 20, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
 }
 
-#sidebar.collapsed .tab-item.playing-audio:not(:hover) .tab-favicon,
-#sidebar.collapsed .tab-item.muted:not(:hover) .tab-favicon {
-  display: none;
+#sidebar.collapsed .tab-item.playing-audio .tab-audio-btn:hover,
+#sidebar.collapsed .tab-item.muted .tab-audio-btn:hover {
+  background-color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  color: #000;
 }
 
-#sidebar.collapsed .tab-item:hover .tab-audio-btn {
-  display: none;
+body.light-mode #sidebar.collapsed .tab-item.playing-audio .tab-audio-btn,
+body.light-mode #sidebar.collapsed .tab-item.muted .tab-audio-btn {
+  background-color: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+body.light-mode #sidebar.collapsed .tab-item.playing-audio .tab-audio-btn:hover,
+body.light-mode #sidebar.collapsed .tab-item.muted .tab-audio-btn:hover {
+  background-color: var(--accent-blue);
+  border-color: var(--accent-blue);
+  color: #fff;
 }
 
 /* Floating Permission Request Bar */
