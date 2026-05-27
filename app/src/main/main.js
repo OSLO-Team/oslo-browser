@@ -611,7 +611,7 @@ function setupTabListeners(tab) {
       };
     }
     const targetWin = getWin();
-    createTab(details.url, tab.isIncognito, tab.space, targetWin ? targetWin.id : null);
+    createAndNotifyTab(details.url, tab.isIncognito, tab.space, targetWin ? targetWin.id : null);
     return { action: 'deny' };
   });
 
@@ -760,14 +760,14 @@ function setupTabListeners(tab) {
         label: labels.openLinkNewTab,
         click: () => {
           const targetWin = getWin();
-          createTab(params.linkURL, false, tab.space, targetWin ? targetWin.id : null);
+          createAndNotifyTab(params.linkURL, false, tab.space, targetWin ? targetWin.id : null);
         }
       }));
       menu.append(new MenuItem({
         label: labels.openLinkNewIncognitoTab,
         click: () => {
           const targetWin = getWin();
-          createTab(params.linkURL, true, tab.space, targetWin ? targetWin.id : null);
+          createAndNotifyTab(params.linkURL, true, tab.space, targetWin ? targetWin.id : null);
         }
       }));
       menu.append(new MenuItem({ type: 'separator' }));
@@ -861,6 +861,31 @@ function createTab(url, isIncognito = false, space = 'Genel', winId = null, tabI
     view.webContents.loadFile(path.join(__dirname, '../newtab/newtab.html'));
   }
 
+  return tab;
+}
+
+function createAndNotifyTab(url, isIncognito = false, space = 'Genel', winId = null, tabId = null, isPinned = false, zoomFactor = null) {
+  const tab = createTab(url, isIncognito, space, winId, tabId, isPinned, zoomFactor);
+  const win = winId ? BrowserWindow.fromId(winId) : null;
+  if (win) {
+    sendToUI(win, 'ui-tab-created', {
+      id: tab.id,
+      url: tab.url,
+      title: tab.title,
+      isLoading: tab.isLoading,
+      isIncognito: tab.isIncognito,
+      space: tab.space,
+      isPinned: tab.isPinned,
+      zoomFactor: tab.zoomFactor
+    });
+
+    if (tab.view && tab.zoomFactor !== 1.0) {
+      tab.view.webContents.setZoomFactor(tab.zoomFactor);
+    }
+
+    selectTab(tab.id);
+  }
+  saveSession();
   return tab;
 }
 
@@ -1304,24 +1329,7 @@ ipcMain.on('tab-create', (event, data) => {
   const isPinned = data && typeof data === 'object' ? !!data.isPinned : false;
   const zoomFactor = data && typeof data === 'object' && typeof data.zoomFactor === 'number' ? data.zoomFactor : null;
 
-  const tab = createTab(url, isIncognito, space, winId, tabId, isPinned, zoomFactor);
-  sendToUI(win, 'ui-tab-created', {
-    id: tab.id,
-    url: tab.url,
-    title: tab.title,
-    isLoading: tab.isLoading,
-    isIncognito: tab.isIncognito,
-    space: tab.space,
-    isPinned: tab.isPinned,
-    zoomFactor: tab.zoomFactor
-  });
-
-  if (tab.view && tab.zoomFactor !== 1.0) {
-    tab.view.webContents.setZoomFactor(tab.zoomFactor);
-  }
-
-  selectTab(tab.id);
-  saveSession();
+  createAndNotifyTab(url, isIncognito, space, winId, tabId, isPinned, zoomFactor);
 });
 
 ipcMain.on('tab-sleep', (event, tabId) => {
