@@ -43,7 +43,7 @@ export function sendBounds() {
   const isBookmarkEditOpen = bookmarkEditModal?.classList.contains('open');
   const isFolderCreateOpen = document.getElementById('folder-create-modal')?.classList.contains('open');
   const isUpdateOpen = document.getElementById('update-modal')?.classList.contains('open');
-  const isInstallingOpen = document.getElementById('installing-overlay')?.style.display === 'flex';
+  const isInstallingOpen = document.getElementById('installing-overlay')?.classList.contains('open');
   const isTelemetryOpen = document.getElementById('telemetry-log-modal')?.classList.contains('open');
   const isPermissionsOpen = document.getElementById('permissions-manager-modal')?.classList.contains('open');
   const isPasswordAuditOpen = document.getElementById('password-audit-modal')?.classList.contains('open');
@@ -1562,7 +1562,7 @@ document.getElementById('btn-cancel-update')?.addEventListener('click', closeUpd
 
 document.getElementById('btn-confirm-update')?.addEventListener('click', () => {
   const url = updateModal?.dataset.downloadUrl;
-  const version = document.getElementById('update-modal-version')?.textContent || '1.0.9';
+  const version = document.getElementById('update-modal-version')?.textContent || '1.1.0';
   
   if (!url) {
     window.oslo.openExternalLink('https://oslobrowser.com/download');
@@ -1618,7 +1618,7 @@ document.getElementById('btn-confirm-update')?.addEventListener('click', () => {
     }
     
     if (installingOverlay) {
-      installingOverlay.style.display = 'flex';
+      installingOverlay.classList.add('open');
       sendBounds(); // Hide native webview bounds because installing overlay is visible!
     }
   }).catch(err => {
