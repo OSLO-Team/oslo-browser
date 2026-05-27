@@ -1046,11 +1046,11 @@ export function initSettings() {
 
   const versionDisplay = document.getElementById('about-version-display');
   if (versionDisplay) {
-    versionDisplay.textContent = '1.0.0';
+    versionDisplay.textContent = '1.0.1';
   }
   const versionDisplayMain = document.getElementById('about-version-display-main');
   if (versionDisplayMain) {
-    versionDisplayMain.textContent = '1.0.0';
+    versionDisplayMain.textContent = '1.0.1';
   }
 
   if (navHome) {
