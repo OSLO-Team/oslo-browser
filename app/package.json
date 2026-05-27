@@ -1,11 +1,11 @@
 {
   "name": "oslo-browser",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0-alpha.3",
   "description": "OSLO Browser - Elegant Electron-based Custom Web Browser",
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win"
+    "build": "electron-builder --win --publish never && node scripts/write-checksums.js"
   },
   "keywords": [
     "browser",
@@ -35,10 +35,17 @@
         }
       ],
       "icon": "assets/logo.png",
-      "sign": null
+      "sign": null,
+      "publish": [
+        {
+          "provider": "github",
+          "owner": "OSLO-Team",
+          "repo": "oslo-browser"
+        }
+      ]
     },
     "nsis": {
-      "artifactName": "OSLO-Browser-${version}-Setup.exe",
+      "artifactName": "OSLO-Browser-v${version}-Setup.exe",
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,

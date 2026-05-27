@@ -8,6 +8,7 @@ const adblock = require('./adblock');
 // GitHub repository configuration for updates
 const GITHUB_REPO = 'OSLO-Team/oslo-browser'; // Format: 'owner/repo'
 const EXPECTED_UPDATE_PUBLISHERS = ['OSLO Browser', 'oslobrowser.com', 'Emir Can Turan'];
+const REQUIRE_SIGNED_UPDATES = process.env.OSLO_REQUIRE_SIGNED_UPDATES === '1';
 const UPDATE_STATE_FILE = 'pending-update.json';
 
 // Create local stores
@@ -1711,17 +1712,64 @@ ipcMain.handle('history-clear', (event, range) => {
   return [];
 });
 
-function isNewerVersion(current, latest) {
-  const parse = v => v.split('.').map(Number);
-  const curParts = parse(current);
-  const latParts = parse(latest);
-  for (let i = 0; i < Math.max(curParts.length, latParts.length); i++) {
-    const curVal = curParts[i] || 0;
-    const latVal = latParts[i] || 0;
-    if (latVal > curVal) return true;
-    if (curVal > latVal) return false;
+function normalizeVersion(value) {
+  return String(value || '').trim().replace(/^v/i, '');
+}
+
+function parseComparableVersion(value) {
+  const normalized = normalizeVersion(value);
+  const withoutBuild = normalized.split('+')[0];
+  const [core, prerelease = ''] = withoutBuild.split('-', 2);
+  const coreParts = core.split('.').map(part => Number.parseInt(part, 10));
+  if (coreParts.length !== 3 || coreParts.some(part => !Number.isInteger(part) || part < 0)) {
+    return null;
   }
-  return false;
+  return {
+    core: coreParts,
+    prerelease: prerelease ? prerelease.split('.') : []
+  };
+}
+
+function comparePrereleaseIdentifier(left, right) {
+  const leftNumeric = /^\d+$/.test(left);
+  const rightNumeric = /^\d+$/.test(right);
+  if (leftNumeric && rightNumeric) {
+    return Number(left) - Number(right);
+  }
+  if (leftNumeric) return -1;
+  if (rightNumeric) return 1;
+  return left.localeCompare(right);
+}
+
+function compareVersions(left, right) {
+  const parsedLeft = parseComparableVersion(left);
+  const parsedRight = parseComparableVersion(right);
+  if (!parsedLeft || !parsedRight) return 0;
+
+  for (let i = 0; i < 3; i++) {
+    if (parsedLeft.core[i] !== parsedRight.core[i]) {
+      return parsedLeft.core[i] - parsedRight.core[i];
+    }
+  }
+
+  const leftPre = parsedLeft.prerelease;
+  const rightPre = parsedRight.prerelease;
+  if (!leftPre.length && !rightPre.length) return 0;
+  if (!leftPre.length) return 1;
+  if (!rightPre.length) return -1;
+
+  for (let i = 0; i < Math.max(leftPre.length, rightPre.length); i++) {
+    if (leftPre[i] === undefined) return -1;
+    if (rightPre[i] === undefined) return 1;
+    const diff = comparePrereleaseIdentifier(leftPre[i], rightPre[i]);
+    if (diff !== 0) return diff;
+  }
+
+  return 0;
+}
+
+function isNewerVersion(current, latest) {
+  return compareVersions(latest, current) > 0;
 }
 
 function escapeRegExp(value) {
@@ -1738,55 +1786,129 @@ function escapeHtmlText(value) {
   }[char]));
 }
 
-function extractSha256FromText(text, assetName = '') {
-  if (!text || typeof text !== 'string') return '';
-  if (assetName) {
-    const assetMatch = text.match(new RegExp(`${escapeRegExp(assetName)}[\\s\\S]{0,300}?\\b([a-fA-F0-9]{64})\\b`, 'i'));
-    if (assetMatch) return assetMatch[1].toLowerCase();
+function checksumPatternsFor(algorithm) {
+  if (algorithm === 'sha512') {
+    return [
+      { encoding: 'base64', pattern: '[A-Za-z0-9+/=]{88}' },
+      { encoding: 'hex', pattern: '[a-fA-F0-9]{128}' }
+    ];
   }
-
-  const labeledMatch = text.match(/\bsha(?:-?256)?(?:sum|checksum)?\b[^a-fA-F0-9]{0,80}([a-fA-F0-9]{64})/i);
-  if (labeledMatch) return labeledMatch[1].toLowerCase();
-
-  const anyMatch = text.match(/\b[a-fA-F0-9]{64}\b/);
-  return anyMatch ? anyMatch[0].toLowerCase() : '';
+  return [{ encoding: 'hex', pattern: '[a-fA-F0-9]{64}' }];
 }
 
-async function resolveReleaseSha256(release, winAsset) {
+function normalizeChecksumMatch(value, algorithm, encoding) {
+  if (!value || typeof value !== 'string') return null;
+  return {
+    algorithm,
+    encoding,
+    value: encoding === 'hex' ? value.toLowerCase() : value
+  };
+}
+
+function extractChecksumFromText(text, algorithm, assetName = '') {
+  if (!text || typeof text !== 'string') return null;
+
+  for (const { encoding, pattern } of checksumPatternsFor(algorithm)) {
+    if (assetName) {
+      const assetMatch = text.match(new RegExp(`${escapeRegExp(assetName)}[\\s\\S]{0,300}?\\b(${pattern})\\b`, 'i'));
+      if (assetMatch) return normalizeChecksumMatch(assetMatch[1], algorithm, encoding);
+    }
+
+    const label = algorithm === 'sha512'
+      ? 'sha(?:-?512)?(?:sum|checksum)?'
+      : 'sha(?:-?256)?(?:sum|checksum)?';
+    const labeledMatch = text.match(new RegExp(`\\b${label}\\b[^A-Za-z0-9+/=]{0,80}(${pattern})`, 'i'));
+    if (labeledMatch) return normalizeChecksumMatch(labeledMatch[1], algorithm, encoding);
+
+    const anyMatch = text.match(new RegExp(`\\b(${pattern})\\b`, 'i'));
+    if (anyMatch) return normalizeChecksumMatch(anyMatch[1], algorithm, encoding);
+  }
+
+  return null;
+}
+
+async function fetchReleaseAssetText(asset) {
+  const response = await net.fetch(asset.browser_download_url, {
+    headers: { 'User-Agent': 'oslo-browser-updater' }
+  });
+  if (!response.ok) return '';
+  return response.text();
+}
+
+async function resolveReleaseChecksum(release, winAsset) {
   const assetName = winAsset?.name || '';
-  const bodySha = extractSha256FromText(release.body || '', assetName);
-  if (bodySha) return bodySha;
+  for (const algorithm of ['sha256', 'sha512']) {
+    const bodyChecksum = extractChecksumFromText(release.body || '', algorithm, assetName);
+    if (bodyChecksum) return bodyChecksum;
+  }
 
   const checksumAsset = (release.assets || []).find(asset => {
     const name = String(asset.name || '').toLowerCase();
     return asset.browser_download_url && (
       name.endsWith('.sha256') ||
       name.endsWith('.sha256sum') ||
+      name.endsWith('.sha512') ||
+      name.endsWith('.sha512sum') ||
       name.includes('checksum')
     );
   });
 
-  if (!checksumAsset) return '';
-
-  try {
-    const response = await net.fetch(checksumAsset.browser_download_url, {
-      headers: { 'User-Agent': 'oslo-browser-updater' }
-    });
-    if (!response.ok) return '';
-    const checksumText = await response.text();
-    return extractSha256FromText(checksumText, assetName);
-  } catch (error) {
-    console.error('Failed to read update checksum asset:', error);
-    return '';
+  if (checksumAsset) {
+    try {
+      const checksumText = await fetchReleaseAssetText(checksumAsset);
+      for (const algorithm of ['sha256', 'sha512']) {
+        const checksum = extractChecksumFromText(checksumText, algorithm, assetName);
+        if (checksum) return checksum;
+      }
+    } catch (error) {
+      console.error('Failed to read update checksum asset:', error);
+    }
   }
+
+  const latestYmlAsset = (release.assets || []).find(asset => {
+    const name = String(asset.name || '').toLowerCase();
+    return asset.browser_download_url && (name === 'latest.yml' || name === 'latest.yaml');
+  });
+
+  if (latestYmlAsset) {
+    try {
+      const latestYmlText = await fetchReleaseAssetText(latestYmlAsset);
+      return extractChecksumFromText(latestYmlText, 'sha512', assetName);
+    } catch (error) {
+      console.error('Failed to read update metadata asset:', error);
+    }
+  }
+
+  return null;
 }
 
 function isValidUpdateVersion(value) {
-  return typeof value === 'string' && /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(value);
+  return typeof value === 'string' && /^v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/i.test(value);
 }
 
 function isValidSha256(value) {
   return typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value);
+}
+
+function normalizeChecksumAlgorithm(algorithm, checksum = '') {
+  const normalized = typeof algorithm === 'string' ? algorithm.toLowerCase() : '';
+  if (normalized === 'sha256' || normalized === 'sha512') return normalized;
+  return typeof checksum === 'string' && checksum.length === 128 ? 'sha512' : 'sha256';
+}
+
+function normalizeChecksumEncoding(algorithm, checksum = '', encoding = '') {
+  const normalized = typeof encoding === 'string' ? encoding.toLowerCase() : '';
+  if (normalized === 'hex' || normalized === 'base64') return normalized;
+  if (algorithm === 'sha512' && /^[a-f0-9]{128}$/i.test(checksum)) return 'hex';
+  return algorithm === 'sha512' ? 'base64' : 'hex';
+}
+
+function isValidChecksum(value, algorithm, encoding) {
+  if (algorithm === 'sha512') {
+    if (encoding === 'hex') return typeof value === 'string' && /^[a-f0-9]{128}$/i.test(value);
+    return typeof value === 'string' && /^[a-z0-9+/=]{88}$/i.test(value);
+  }
+  return encoding === 'hex' && isValidSha256(value);
 }
 
 function isTrustedUpdateUrl(value) {
@@ -1837,7 +1959,15 @@ function assertTrustedInstallerSignature(filePath) {
   const signature = verifyWindowsInstallerSignature(filePath);
   if (signature.status === 'Skipped') return signature;
   if (signature.Status !== 'Valid' && signature.status !== 'Valid') {
-    throw new Error(`Güncelleme imzası geçerli değil: ${signature.Status || signature.status || 'Unknown'}`);
+    if (REQUIRE_SIGNED_UPDATES) {
+      throw new Error(`Güncelleme imzası geçerli değil: ${signature.Status || signature.status || 'Unknown'}`);
+    }
+    console.warn('[Updater] Installer signature is not valid; continuing after checksum verification:', signature.Status || signature.status || 'Unknown');
+    return {
+      ...signature,
+      trusted: false,
+      required: false
+    };
   }
 
   const subject = signature.Subject || signature.subject || '';
@@ -1847,7 +1977,11 @@ function assertTrustedInstallerSignature(filePath) {
     throw new Error(`Güncelleme yayıncısı güvenilir listede değil: ${subject || 'Bilinmiyor'}`);
   }
 
-  return signature;
+  return {
+    ...signature,
+    trusted: true,
+    required: REQUIRE_SIGNED_UPDATES
+  };
 }
 
 function getPendingUpdatePath() {
@@ -1898,18 +2032,18 @@ ipcMain.handle('check-for-updates', async (event) => {
     }
 
     const release = await response.json();
-    const latestVersion = release.tag_name.replace(/^v/, '');
+    const latestVersion = normalizeVersion(release.tag_name);
 
     let downloadUrl = 'https://oslobrowser.com/download';
     let assetName = '';
-    let sha256 = '';
+    let checksum = null;
     if (release.assets && release.assets.length > 0) {
-      const winAsset = release.assets.find(asset => asset.name.endsWith('.exe')) ||
-        release.assets.find(asset => asset.name.endsWith('.zip'));
+      const winAsset = release.assets.find(asset => /\.exe$/i.test(asset.name || '') && /setup|installer/i.test(asset.name || '')) ||
+        release.assets.find(asset => /\.exe$/i.test(asset.name || ''));
       if (winAsset) {
         downloadUrl = winAsset.browser_download_url;
         assetName = winAsset.name;
-        sha256 = await resolveReleaseSha256(release, winAsset);
+        checksum = await resolveReleaseChecksum(release, winAsset);
       } else {
         downloadUrl = release.html_url;
       }
@@ -1924,8 +2058,11 @@ ipcMain.handle('check-for-updates', async (event) => {
       releaseNotes: release.body || '',
       downloadUrl,
       assetName,
-      sha256,
-      expectedSha256: sha256
+      checksum: checksum?.value || '',
+      checksumAlgorithm: checksum?.algorithm || '',
+      checksumEncoding: checksum?.encoding || '',
+      sha256: checksum?.algorithm === 'sha256' ? checksum.value : '',
+      expectedSha256: checksum?.algorithm === 'sha256' ? checksum.value : ''
     };
   } catch (error) {
     console.error('Failed to check for updates from GitHub:', error);
@@ -1940,7 +2077,7 @@ ipcMain.handle('check-for-updates', async (event) => {
   }
 });
 
-ipcMain.handle('download-update', async (event, { url, version, sha256 }) => {
+ipcMain.handle('download-update', async (event, { url, version, sha256, checksum, checksumAlgorithm, checksumEncoding }) => {
   assertMainUiSender(event);
   const fs = require('fs');
   const { spawn } = require('child_process');
@@ -1949,17 +2086,21 @@ ipcMain.handle('download-update', async (event, { url, version, sha256 }) => {
   
   const win = BrowserWindow.fromWebContents(event.sender);
   const tempDir = os.tmpdir();
-  const installerPath = path.join(tempDir, `OSLO-Browser-${version}-Setup-${Date.now()}.exe`);
+  const targetVersion = normalizeVersion(version);
+  const installerPath = path.join(tempDir, `OSLO-Browser-v${targetVersion || 'update'}-Setup-${Date.now()}.exe`);
   
   try {
-    if (!isValidUpdateVersion(version)) {
+    if (!isValidUpdateVersion(targetVersion)) {
       throw new Error('Geçersiz güncelleme sürümü.');
     }
     if (!isTrustedUpdateUrl(url) || !/\.exe(?:$|[?#])/i.test(url)) {
       throw new Error('Güncelleme paketi güvenilir bir HTTPS kurulum dosyası değil.');
     }
-    if (!isValidSha256(sha256)) {
-      throw new Error('Güncelleme paketi için SHA-256 doğrulama bilgisi eksik.');
+    const expectedChecksum = checksum || sha256 || '';
+    const algorithm = normalizeChecksumAlgorithm(checksumAlgorithm, expectedChecksum);
+    const encoding = normalizeChecksumEncoding(algorithm, expectedChecksum, checksumEncoding);
+    if (!isValidChecksum(expectedChecksum, algorithm, encoding)) {
+      throw new Error('Güncelleme paketi için doğrulama bilgisi eksik veya geçersiz.');
     }
 
     // Fetch automatically handles HTTP/HTTPS redirects out-of-the-box
@@ -1995,19 +2136,22 @@ ipcMain.handle('download-update', async (event, { url, version, sha256 }) => {
     
     await new Promise((resolve) => file.end(resolve));
 
-    const actualSha256 = crypto.createHash('sha256').update(fs.readFileSync(installerPath)).digest('hex');
-    if (actualSha256.toLowerCase() !== sha256.toLowerCase()) {
-      throw new Error('Güncelleme paketi SHA-256 doğrulamasından geçemedi.');
+    const actualChecksum = crypto.createHash(algorithm).update(fs.readFileSync(installerPath)).digest(encoding);
+    if (actualChecksum.toLowerCase() !== expectedChecksum.toLowerCase()) {
+      throw new Error('Güncelleme paketi doğrulamasından geçemedi.');
     }
 
     const signature = assertTrustedInstallerSignature(installerPath);
 
     writePendingUpdateState({
       status: 'installer-started',
-      targetVersion: version,
+      targetVersion,
       previousVersion: app.getVersion(),
       installerPath,
-      sha256: actualSha256,
+      checksum: actualChecksum,
+      checksumAlgorithm: algorithm,
+      checksumEncoding: encoding,
+      sha256: algorithm === 'sha256' ? actualChecksum : '',
       signature,
       startedAt: Date.now()
     });

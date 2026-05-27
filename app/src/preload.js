@@ -833,11 +833,24 @@ function isExternalUrl(value) {
 }
 
 function isVersion(value) {
-  return typeof value === 'string' && /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(value);
+  return typeof value === 'string' && /^v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/i.test(value);
 }
 
 function isSha256(value) {
   return typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value);
+}
+
+function normalizeChecksumAlgorithm(value, checksum = '') {
+  const algorithm = typeof value === 'string' ? value.toLowerCase() : '';
+  if (algorithm === 'sha256' || algorithm === 'sha512') return algorithm;
+  return typeof checksum === 'string' && checksum.length === 128 ? 'sha512' : 'sha256';
+}
+
+function isChecksum(value, algorithm) {
+  if (algorithm === 'sha512') {
+    return typeof value === 'string' && (/^[a-f0-9]{128}$/i.test(value) || /^[a-z0-9+/=]{88}$/i.test(value));
+  }
+  return isSha256(value);
 }
 
 function safeSend(channel, validator, payload) {
@@ -1047,9 +1060,17 @@ const osloApi = {
 
   // Updates & Telemetry APIs
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
-  downloadUpdate: (url, version, sha256 = '') => {
-    if (isWebUrl(url) && isVersion(version) && isSha256(sha256)) {
-      return ipcRenderer.invoke('download-update', { url, version, sha256 });
+  downloadUpdate: (url, version, checksum = '', checksumAlgorithm = '') => {
+    const normalizedVersion = typeof version === 'string' ? version.replace(/^v/i, '') : version;
+    const algorithm = normalizeChecksumAlgorithm(checksumAlgorithm, checksum);
+    if (isWebUrl(url) && isVersion(version) && isChecksum(checksum, algorithm)) {
+      return ipcRenderer.invoke('download-update', {
+        url,
+        version: normalizedVersion,
+        checksum,
+        checksumAlgorithm: algorithm,
+        sha256: algorithm === 'sha256' ? checksum : ''
+      });
     }
     return Promise.reject(new Error('Invalid update package metadata.'));
   },

@@ -26,16 +26,16 @@ function parseMarkdown(text) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-  
+
   html = html.replace(/^### (.*$)/gim, '<h4>$1</h4>');
   html = html.replace(/^## (.*$)/gim, '<h3>$1</h3>');
   html = html.replace(/^# (.*$)/gim, '<h2>$1</h2>');
   html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  
+
   const lines = html.split('\n');
   let inList = false;
   const processedLines = [];
-  
+
   for (let line of lines) {
     const trimmed = line.trim();
     if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
@@ -61,7 +61,7 @@ function parseMarkdown(text) {
   if (inList) {
     processedLines.push('</ul>');
   }
-  
+
   return processedLines.join('\n');
 }
 
@@ -96,7 +96,7 @@ const tabContextMenu = document.getElementById('tab-context-menu');
 export function sendBounds() {
   const contentArea = document.getElementById('content-area');
   if (!contentArea) return;
-  
+
   // Hide native web view when modals, dropdowns, or context menus are active
   const isClearHistoryOpen = clearHistoryModal?.classList.contains('open');
   const isClearBrowserDataOpen = document.getElementById('clear-browser-data-modal')?.classList.contains('open');
@@ -111,23 +111,23 @@ export function sendBounds() {
   const isSpaceDeleteOpen = document.getElementById('space-delete-modal')?.classList.contains('open');
   const isPermissionBarOpen = document.getElementById('permission-bar')?.style.display === 'flex';
   const isPasswordSaveBarOpen = document.getElementById('password-save-bar')?.style.display === 'flex';
-  
+
   const isDropdownOpen = !!document.querySelector('.bookmarks-bar-dropdown');
-  
+
   const tabContextMenu = document.getElementById('tab-context-menu');
   const bookmarksBarContextMenu = document.getElementById('bookmarks-bar-context-menu');
   const isTabContextMenuOpen = tabContextMenu && tabContextMenu.style.display === 'block';
   const isBookmarksBarContextMenuOpen = bookmarksBarContextMenu && bookmarksBarContextMenu.style.display === 'block';
-  
+
   const isAutocompleteOpen = document.getElementById('autocomplete-dropdown')?.style.display === 'block';
   const isHistoryOpen = document.getElementById('history-panel')?.classList.contains('open');
   const isSettingsOpen = document.getElementById('settings-overlay')?.classList.contains('open');
   const isDownloadsOpen = document.getElementById('downloads-overlay')?.classList.contains('open');
   if (
-    isClearHistoryOpen || 
+    isClearHistoryOpen ||
     isClearBrowserDataOpen ||
-    isBookmarkEditOpen || 
-    isFolderCreateOpen || 
+    isBookmarkEditOpen ||
+    isFolderCreateOpen ||
     isUpdateOpen ||
     isTelemetryOpen ||
     isPermissionsOpen ||
@@ -135,9 +135,9 @@ export function sendBounds() {
     isSecurityInfoOpen ||
     isSpaceOpen ||
     isSpaceDeleteOpen ||
-    isDropdownOpen || 
+    isDropdownOpen ||
     isAutocompleteOpen ||
-    isTabContextMenuOpen || 
+    isTabContextMenuOpen ||
     isBookmarksBarContextMenuOpen ||
     isHistoryOpen ||
     isSettingsOpen ||
@@ -185,7 +185,7 @@ if (sidebarToggle) {
     if (typeof renderSpaces === 'function') {
       renderSpaces();
     }
-    setTimeout(sendBounds, 350); 
+    setTimeout(sendBounds, 350);
   });
 }
 
@@ -428,7 +428,7 @@ document.getElementById('close-bookmark-edit-modal')?.addEventListener('click', 
 document.getElementById('btn-save-bookmark-edit')?.addEventListener('click', () => {
   const newTitle = bookmarkEditName?.value.trim();
   if (!newTitle) return;
-  
+
   const itemIndex = state.bookmarks.findIndex(b => b.id === state.editingBookmarkId);
   if (itemIndex !== -1) {
     const item = state.bookmarks[itemIndex];
@@ -438,7 +438,7 @@ document.getElementById('btn-save-bookmark-edit')?.addEventListener('click', () 
       if (!newUrl) return;
       item.url = newUrl;
     }
-    
+
     window.oslo.setBookmarks(state.bookmarks).then(updated => {
       state.bookmarks = updated;
       updateBookmarkIcon();
@@ -526,7 +526,7 @@ window.oslo.onTabUpdated((tabUpdate) => {
   if (state.tabs[tabUpdate.id]) {
     const oldUrl = state.tabs[tabUpdate.id].url;
     state.tabs[tabUpdate.id] = { ...state.tabs[tabUpdate.id], ...tabUpdate };
-    
+
     if (tabUpdate.id === state.activeTabId) {
       if (tabUpdate.url !== undefined) {
         if (addressInput) {
@@ -538,7 +538,7 @@ window.oslo.onTabUpdated((tabUpdate) => {
         }
         updateBookmarkIcon();
         updateSecurityIndicator();
-        
+
         // Auto-dismiss permission bar on navigation
         const permBar = document.getElementById('permission-bar');
         if (permBar && permBar.style.display === 'flex') {
@@ -550,7 +550,7 @@ window.oslo.onTabUpdated((tabUpdate) => {
       }
       updateNavButtonsState();
     }
-    
+
     renderTabs();
 
     if (tabUpdate.url !== undefined && tabUpdate.url !== oldUrl && !tabUpdate.url.includes('newtab.html') && !tabUpdate.url.startsWith('file://')) {
@@ -572,7 +572,7 @@ window.oslo.onTabClosed((tabId) => {
 window.oslo.onTabSelected((tabId) => {
   state.activeTabId = tabId;
   const activeTab = state.tabs[tabId];
-  
+
   if (activeTab) {
     state.activeSpace = activeTab.space || 'Genel';
     if (addressInput) {
@@ -594,7 +594,7 @@ window.oslo.onTabSelected((tabId) => {
       permBar.style.display = 'none';
     }
   }
-  
+
   renderTabs();
   sendBounds();
 });
@@ -615,7 +615,7 @@ function updateZoomUI() {
   const zoomIndicator = document.getElementById('zoom-indicator-btn');
   const zoomText = document.getElementById('zoom-value-text');
   if (!zoomIndicator || !zoomText) return;
-  
+
   if (activeTab && activeTab.zoomFactor !== undefined && activeTab.zoomFactor !== 1.0) {
     const pct = Math.round(activeTab.zoomFactor * 100);
     zoomText.textContent = `${pct}%`;
@@ -636,7 +636,7 @@ document.getElementById('zoom-indicator-btn')?.addEventListener('click', () => {
 // Download progresses from Main Process
 window.oslo.onDownloadProgress((data) => {
   state.downloads[data.id] = data;
-  
+
   // Auto open downloads overlay when a download starts
   if (data.status === 'progressing' && downloadsOverlay && !downloadsOverlay.classList.contains('open')) {
     downloadsOverlay.classList.add('open');
@@ -645,7 +645,7 @@ window.oslo.onDownloadProgress((data) => {
     settingsOverlay?.classList.remove('open');
     sendBounds();
   }
-  
+
   renderDownloads();
 });
 
@@ -725,7 +725,7 @@ function updateNavButtonsState() {
 function updateSecurityIndicator() {
   const indicator = document.getElementById('security-indicator');
   if (!indicator) return;
-  
+
   const activeTab = state.tabs[state.activeTabId];
   if (!activeTab || !activeTab.url || activeTab.url.includes('newtab.html')) {
     indicator.className = 'security-indicator local';
@@ -1179,9 +1179,9 @@ function initWorkspaceCustomizationGrids() {
 export function renderSpaces() {
   const spacesList = document.getElementById('spaces-list');
   if (!spacesList) return;
-  
+
   spacesList.innerHTML = '';
-  
+
   state.spaces.forEach(space => {
     const spaceName = typeof space === 'string' ? space : space.name;
     const spaceEmoji = typeof space === 'object' && space.emoji ? space.emoji : '🌐';
@@ -1191,29 +1191,29 @@ export function renderSpaces() {
     }
     const matchingColor = presetColors.find(c => c.hex === spaceColor);
     const spaceTextColor = matchingColor ? matchingColor.text : '#ffffff';
-    
+
     const pill = document.createElement('div');
     pill.className = `space-pill ${spaceName === state.activeSpace ? 'active' : ''}`;
-    
+
     pill.style.setProperty('--space-color', spaceColor);
     pill.style.setProperty('--space-text-color', spaceTextColor);
-    
+
     const displayName = spaceName === 'Genel' ? (translations[state.currentLang]['general'] || 'Genel') : spaceName;
     pill.title = displayName;
-    
+
     const isCollapsed = sidebar?.classList.contains('collapsed');
     if (isCollapsed) {
       pill.textContent = spaceEmoji;
     } else {
       pill.innerHTML = `<span style="margin-right: 6px;">${escapeHtml(spaceEmoji)}</span><span>${escapeHtml(displayName)}</span>`;
     }
-    
+
     pill.addEventListener('click', () => {
       state.activeSpace = spaceName;
       renderSpaces();
       renderTabs();
       window.oslo.logTelemetryEvent('space-switch', { space: spaceName });
-      
+
       const spaceTabs = state.tabOrder.filter(id => state.tabs[id] && state.tabs[id].space === spaceName);
       if (spaceTabs.length > 0) {
         spaceTabs.sort((a, b) => state.tabs[b].lastActive - state.tabs[a].lastActive);
@@ -1222,10 +1222,10 @@ export function renderSpaces() {
         window.oslo.createTab({ space: spaceName });
       }
     });
-    
+
     pill.addEventListener('dblclick', () => {
       if (spaceName === 'Genel') return;
-      
+
       const confirmText = translations[state.currentLang]['delete-space-confirm'] || 'Bu çalışma alanını silmek istediğinize emin misiniz? (Sekmeler Genel alanına taşınacaktır)';
       showSpaceDeleteModal(
         spaceName,
@@ -1244,7 +1244,7 @@ export function renderSpaces() {
             }
             renderSpaces();
             renderTabs();
-            
+
             const spaceTabs = state.tabOrder.filter(id => state.tabs[id] && state.tabs[id].space === 'Genel');
             if (spaceTabs.length > 0) {
               spaceTabs.sort((a, b) => state.tabs[b].lastActive - state.tabs[a].lastActive);
@@ -1273,11 +1273,11 @@ export function renderSpaces() {
         }
       );
     });
-    
+
     pill.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       if (spaceName === 'Genel') return;
-      
+
       const confirmText = translations[state.currentLang]['delete-space-confirm'] || 'Bu çalışma alanını silmek istediğinize emin misiniz? (Sekmeler Genel alanına taşınacaktır)';
       showSpaceDeleteModal(
         spaceName,
@@ -1296,7 +1296,7 @@ export function renderSpaces() {
             }
             renderSpaces();
             renderTabs();
-            
+
             const spaceTabs = state.tabOrder.filter(id => state.tabs[id] && state.tabs[id].space === 'Genel');
             if (spaceTabs.length > 0) {
               spaceTabs.sort((a, b) => state.tabs[b].lastActive - state.tabs[a].lastActive);
@@ -1325,7 +1325,7 @@ export function renderSpaces() {
         }
       );
     });
-    
+
     spacesList.appendChild(pill);
   });
 }
@@ -1406,7 +1406,7 @@ function init() {
       return s;
     });
     renderSpaces();
-    
+
     // Load session restore setting and restore if enabled
     window.oslo.getAllSettings().then(settings => {
       if (settings.sessionRestoreEnabled) {
@@ -1415,10 +1415,10 @@ function init() {
           if (savedTabs.length > 0) {
             state.tabs = {};
             state.tabOrder = [];
-            
+
             let lastActiveTabId = savedTabs[0].id;
             let latestActiveTime = 0;
-            
+
             savedTabs.forEach(t => {
               state.tabs[t.id] = {
                 id: t.id,
@@ -1442,7 +1442,7 @@ function init() {
                 lastActiveTabId = t.id;
               }
             });
-            
+
             setTimeout(() => {
               window.oslo.selectTab(lastActiveTabId);
             }, 200);
@@ -1478,10 +1478,10 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     window.oslo.newWindow();
   }
-  
+
   if (e.key === 'Escape') {
     let closedAny = false;
-    
+
     // Close panels
     const panels = [
       document.getElementById('bookmarks-panel'),
@@ -1495,7 +1495,7 @@ window.addEventListener('keydown', (e) => {
         closedAny = true;
       }
     });
-    
+
     // Close modals
     const modals = [
       document.getElementById('clear-history-modal'),
@@ -1516,14 +1516,14 @@ window.addEventListener('keydown', (e) => {
         closedAny = true;
       }
     });
-    
+
     // Close find bar
     const findBar = document.getElementById('find-bar');
     if (findBar && findBar.style.display === 'flex') {
       hideFindBar();
       closedAny = true;
     }
-    
+
     if (closedAny) {
       e.preventDefault();
       sendBounds();
@@ -1623,7 +1623,7 @@ window.oslo.onPasswordSavePrompt((data) => {
   if (saveBar && saveMessage && saveBtn && cancelBtn) {
     const domain = data.origin.replace(/^https?:\/\//, '');
     const username = data.username;
-    
+
     let msgTemplate = translations[state.currentLang]['password-save-prompt'] || 'Save password for {domain}? ({username})';
     saveMessage.textContent = msgTemplate.replace('{domain}', domain).replace('{username}', username);
 
@@ -1677,8 +1677,8 @@ const getUpdateText = (key, fallback) => translations[state.currentLang]?.[key] 
 document.getElementById('btn-check-updates')?.addEventListener('click', () => {
   const statusMsg = document.getElementById('update-status-message');
   if (statusMsg) {
-    statusMsg.textContent = state.currentLang === 'tr' ? 'Güncellemeler denetleniyor...' : 
-                             (state.currentLang === 'fr' ? 'Recherche de mises à jour...' : 'Checking for updates...');
+    statusMsg.textContent = state.currentLang === 'tr' ? 'Güncellemeler denetleniyor...' :
+      (state.currentLang === 'fr' ? 'Recherche de mises à jour...' : 'Checking for updates...');
     statusMsg.style.display = 'block';
   }
 
@@ -1689,8 +1689,8 @@ document.getElementById('btn-check-updates')?.addEventListener('click', () => {
       const currentVersion = document.getElementById('update-current-version');
       const modalVersion = document.getElementById('update-modal-version');
       const modalNotes = document.getElementById('update-modal-notes');
-      
-      if (currentVersion) currentVersion.textContent = `v${info.currentVersion || '1.0.0-alpha.1'}`;
+
+      if (currentVersion) currentVersion.textContent = `v${info.currentVersion || '1.0.0-alpha.3'}`;
       if (modalVersion) modalVersion.textContent = `v${info.latestVersion}`;
       if (modalNotes) modalNotes.innerHTML = parseMarkdown(info.releaseNotes);
 
@@ -1699,11 +1699,13 @@ document.getElementById('btn-check-updates')?.addEventListener('click', () => {
 
       // Store download URL in a data attribute
       updateModal.dataset.downloadUrl = info.downloadUrl;
-      updateModal.dataset.sha256 = info.sha256 || info.expectedSha256 || '';
+      updateModal.dataset.checksum = info.checksum || info.sha256 || info.expectedSha256 || '';
+      updateModal.dataset.checksumAlgorithm = info.checksumAlgorithm || ((info.sha256 || info.expectedSha256) ? 'sha256' : '');
+      updateModal.dataset.sha256 = info.sha256 || '';
     } else {
       if (statusMsg) {
-        statusMsg.textContent = state.currentLang === 'tr' ? 'Tarayıcınız güncel.' : 
-                                 (state.currentLang === 'fr' ? 'Votre navigateur est à jour.' : 'Your browser is up to date.');
+        statusMsg.textContent = state.currentLang === 'tr' ? 'Tarayıcınız güncel.' :
+          (state.currentLang === 'fr' ? 'Votre navigateur est à jour.' : 'Your browser is up to date.');
         statusMsg.style.display = 'block';
         setTimeout(() => {
           statusMsg.style.display = 'none';
@@ -1729,16 +1731,17 @@ document.getElementById('btn-cancel-update')?.addEventListener('click', closeUpd
 
 document.getElementById('btn-confirm-update')?.addEventListener('click', () => {
   const url = updateModal?.dataset.downloadUrl;
-  const sha256 = updateModal?.dataset.sha256 || '';
-  const version = document.getElementById('update-modal-version')?.textContent || '1.0.0-alpha.1';
-  
+  const checksum = updateModal?.dataset.checksum || updateModal?.dataset.sha256 || '';
+  const checksumAlgorithm = updateModal?.dataset.checksumAlgorithm || (checksum.length === 128 ? 'sha512' : 'sha256');
+  const version = (document.getElementById('update-modal-version')?.textContent || '1.0.0-alpha.3').replace(/^v/, '');
+
   if (!url) {
     window.oslo.openExternalLink('https://oslobrowser.com/download');
     closeUpdateModalFunc();
     return;
   }
 
-  if (!sha256) {
+  if (!checksum) {
     const statusMsg = document.getElementById('update-status-message');
     if (statusMsg) {
       statusMsg.textContent = state.currentLang === 'tr'
@@ -1751,20 +1754,20 @@ document.getElementById('btn-confirm-update')?.addEventListener('click', () => {
     closeUpdateModalFunc();
     return;
   }
-  
+
   // Hide footer buttons & close button to prevent closing during download
   const footer = updateModal.querySelector('.modal-footer');
   if (footer) footer.style.display = 'none';
   const closeBtn = document.getElementById('close-update-modal');
   if (closeBtn) closeBtn.style.display = 'none';
-  
+
   // Reset and show progress bar
   const progressContainer = document.getElementById('update-progress-container');
   const progressBar = document.getElementById('update-progress-bar');
   const progressPercent = document.getElementById('update-progress-percent');
   const progressStatus = document.getElementById('update-progress-status');
   const installWarning = document.getElementById('update-install-warning');
-  
+
   if (progressBar) progressBar.style.width = '0%';
   if (progressPercent) progressPercent.textContent = '0%';
   if (progressStatus) {
@@ -1772,15 +1775,15 @@ document.getElementById('btn-confirm-update')?.addEventListener('click', () => {
   }
   if (installWarning) installWarning.style.display = 'block';
   if (progressContainer) progressContainer.style.display = 'flex';
-  
+
   // Listen to progress
   const removeListener = window.oslo.onUpdateDownloadProgress((data) => {
     if (progressBar) progressBar.style.width = `${data.progress}%`;
     if (progressPercent) progressPercent.textContent = `${data.progress}%`;
   });
-  
+
   // Start download
-  window.oslo.downloadUpdate(url, version, sha256).then(() => {
+  window.oslo.downloadUpdate(url, version, checksum, checksumAlgorithm).then(() => {
     removeListener();
 
     if (progressBar) progressBar.style.width = '100%';
@@ -1791,13 +1794,14 @@ document.getElementById('btn-confirm-update')?.addEventListener('click', () => {
   }).catch(err => {
     console.error('Download failed:', err);
     removeListener();
-    
+
     // Show error status
     if (progressStatus) {
-      progressStatus.textContent = state.currentLang === 'tr' ? 'İndirme hatası!' : 
-                                   (state.currentLang === 'fr' ? 'Erreur de téléchargement!' : 'Download failed!');
+      const baseMessage = state.currentLang === 'tr' ? 'İndirme hatası!' :
+        (state.currentLang === 'fr' ? 'Erreur de téléchargement!' : 'Download failed!');
+      progressStatus.textContent = err?.message ? `${baseMessage} ${err.message}` : baseMessage;
     }
-    
+
     // Restore footer buttons & close button so they can retry or cancel
     setTimeout(() => {
       if (footer) footer.style.display = 'flex';
@@ -1815,8 +1819,8 @@ function autoCheckForUpdates() {
       const currentVersion = document.getElementById('update-current-version');
       const modalVersion = document.getElementById('update-modal-version');
       const modalNotes = document.getElementById('update-modal-notes');
-      
-      if (currentVersion) currentVersion.textContent = `v${info.currentVersion || '1.0.0-alpha.1'}`;
+
+      if (currentVersion) currentVersion.textContent = `v${info.currentVersion || '1.0.0-alpha.3'}`;
       if (modalVersion) modalVersion.textContent = `v${info.latestVersion}`;
       if (modalNotes) modalNotes.innerHTML = parseMarkdown(info.releaseNotes);
 
@@ -1826,7 +1830,9 @@ function autoCheckForUpdates() {
       // Store download URL in a data attribute
       if (updateModal) {
         updateModal.dataset.downloadUrl = info.downloadUrl;
-        updateModal.dataset.sha256 = info.sha256 || info.expectedSha256 || '';
+        updateModal.dataset.checksum = info.checksum || info.sha256 || info.expectedSha256 || '';
+        updateModal.dataset.checksumAlgorithm = info.checksumAlgorithm || ((info.sha256 || info.expectedSha256) ? 'sha256' : '');
+        updateModal.dataset.sha256 = info.sha256 || '';
       }
     }
   }).catch(err => {
@@ -1846,7 +1852,7 @@ function renderTelemetryLogs() {
     const formatTime = (ts) => {
       const d = new Date(ts);
       const pad = n => String(n).padStart(2, '0');
-      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     };
 
     // Render Events List
@@ -1958,13 +1964,13 @@ function renderTelemetryLogs() {
 
 document.getElementById('btn-show-telemetry')?.addEventListener('click', () => {
   renderTelemetryLogs();
-  
+
   // Reset active tab to Events pane on show
   document.querySelectorAll('.telemetry-tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('telemetry-tab-events')?.classList.add('active');
   document.querySelectorAll('.telemetry-pane').forEach(p => p.classList.remove('active'));
   document.getElementById('telemetry-events-container')?.classList.add('active');
-  
+
   telemetryLogModal?.classList.add('open');
   sendBounds();
 });
@@ -1981,7 +1987,7 @@ document.querySelectorAll('.telemetry-tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.telemetry-tab-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    
+
     const tabName = btn.dataset.tab;
     document.querySelectorAll('.telemetry-pane').forEach(p => p.classList.remove('active'));
     document.getElementById(`telemetry-${tabName}-container`)?.classList.add('active');
@@ -1997,7 +2003,7 @@ document.getElementById('btn-copy-telemetry')?.addEventListener('click', () => {
       const copySpan = copyBtn?.querySelector('span');
       const originalText = translations[state.currentLang]['telemetry-copy'] || 'Kopyala';
       const copiedText = translations[state.currentLang]['telemetry-copied'] || 'Kopyalandı!';
-      
+
       if (copySpan) {
         copySpan.textContent = copiedText;
         setTimeout(() => {
@@ -2012,12 +2018,12 @@ document.getElementById('btn-copy-telemetry')?.addEventListener('click', () => {
 document.getElementById('btn-clear-telemetry')?.addEventListener('click', () => {
   window.oslo.clearTelemetryLogs().then(() => {
     renderTelemetryLogs();
-    
+
     const clearBtn = document.getElementById('btn-clear-telemetry');
     const clearSpan = clearBtn?.querySelector('span');
     const originalText = translations[state.currentLang]['telemetry-clear'] || 'Temizle';
     const clearedText = translations[state.currentLang]['telemetry-cleared'] || 'Temizlendi!';
-    
+
     if (clearSpan) {
       clearSpan.textContent = clearedText;
       setTimeout(() => {
@@ -2094,7 +2100,7 @@ function renderPermissionsList() {
 
       const badge = document.createElement('span');
       badge.className = `permission-status-badge ${decision ? 'allowed' : 'blocked'}`;
-      badge.textContent = decision 
+      badge.textContent = decision
         ? (translations[state.currentLang]['permission-allowed'] || 'İzin Verildi')
         : (translations[state.currentLang]['permission-blocked'] || 'Engellendi');
 
@@ -2320,18 +2326,18 @@ function showSpaceModal(title, label, defaultValue, callback) {
   const titleEl = document.getElementById('space-modal-title');
   const labelEl = document.getElementById('space-modal-label');
   const inputEl = document.getElementById('space-modal-input');
-  
+
   if (modal && titleEl && labelEl && inputEl) {
     titleEl.textContent = title;
     labelEl.textContent = label;
     inputEl.value = defaultValue || '';
     spaceModalCallback = callback;
-    
+
     // Reset selections on show
     selectedAddEmoji = '🌐';
     selectedAddColor = presetColors[0];
     initWorkspaceCustomizationGrids();
-    
+
     modal.classList.add('open');
     sendBounds();
     setTimeout(() => {
@@ -2394,7 +2400,7 @@ function showSpaceDeleteModal(currentName, confirmText, deleteCallback, renameCa
   const confirmTextEl = document.getElementById('space-delete-confirm-text');
   const titleEl = document.getElementById('space-delete-modal-title');
   const renameInput = document.getElementById('space-delete-rename-input');
-  
+
   if (modal && confirmTextEl) {
     if (titleEl) {
       titleEl.textContent = translations[state.currentLang]['space-options-title'] || 'Çalışma Alanı Seçenekleri';
@@ -2403,15 +2409,15 @@ function showSpaceDeleteModal(currentName, confirmText, deleteCallback, renameCa
     if (renameInput) {
       renameInput.value = currentName || '';
     }
-    
+
     // Find space object to populate selections
     const spaceObj = state.spaces.find(s => (typeof s === 'string' ? s : s.name) === currentName);
     selectedEditEmoji = spaceObj && spaceObj.emoji ? spaceObj.emoji : '🌐';
     const currentHex = spaceObj && spaceObj.color ? (currentName === 'Genel' ? '#000000' : spaceObj.color) : (currentName === 'Genel' ? '#000000' : '#10b981');
     selectedEditColor = presetColors.find(c => c.hex === currentHex) || presetColors[0];
-    
+
     initWorkspaceCustomizationGrids();
-    
+
     spaceDeleteCallback = deleteCallback;
     spaceRenameCallback = renameCallback;
     modal.classList.add('open');
