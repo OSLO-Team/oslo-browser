@@ -1,0 +1,1703 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OSLO Browser</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body class="dark-mode">
+
+  <!-- Custom Title Bar for Frameless Window -->
+  <div id="title-bar">
+    <div class="title-drag-area">
+      <img class="logo-icon" src="../../assets/logo.svg" width="16" height="16" alt="OSLO">
+      <span class="app-title">OSLO</span>
+    </div>
+    <div class="window-controls no-drag">
+      <button id="win-min" class="win-btn" title="Minimize">
+        <svg viewBox="0 0 10 10" width="10" height="10">
+          <rect x="0" y="4.5" width="10" height="1" fill="currentColor" />
+        </svg>
+      </button>
+      <button id="win-max" class="win-btn" title="Maximize">
+        <svg viewBox="0 0 10 10" width="10" height="10">
+          <rect x="1.5" y="1.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1" />
+        </svg>
+      </button>
+      <button id="win-close" class="win-btn win-close-btn" title="Close">
+        <svg viewBox="0 0 10 10" width="10" height="10">
+          <path d="M1 1 L9 9 M9 1 L1 9" stroke="currentColor" stroke-width="1.2" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="app-container">
+    <!-- Left Vertical Tab Sidebar (Zen Browser Style) -->
+    <aside id="sidebar" class="expanded">
+      <div class="sidebar-header">
+        <button id="sidebar-toggle" class="sidebar-btn" title="Menüyü Daralt/Genişlet">
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" fill="currentColor" />
+          </svg>
+        </button>
+        <button id="new-tab-btn" class="sidebar-btn primary-btn" title="Yeni Sekme">
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="currentColor" />
+          </svg>
+          <span class="btn-text" data-i18n="new-tab">Yeni Sekme</span>
+        </button>
+      </div>
+
+
+      <!-- Vertical Tab List -->
+      <div id="tabs-list" class="tabs-container">
+        <!-- Tabs will be rendered here dynamically by renderer.js -->
+      </div>
+
+      <!-- Spaces Switcher -->
+      <div id="spaces-container" class="spaces-container">
+        <div class="spaces-list-wrapper">
+          <div id="spaces-list" class="spaces-list">
+            <!-- Spaces pills/circles will be rendered dynamically -->
+          </div>
+        </div>
+        <button id="add-space-btn" class="space-add-btn" title="Yeni Çalışma Alanı Ekle">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Sidebar Footer Action Buttons -->
+      <div class="sidebar-footer">
+        <button id="incognito-btn" class="sidebar-btn" title="Yeni Gizli Sekme">
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path
+              d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"
+              fill="currentColor" />
+          </svg>
+          <span class="btn-text" data-i18n="incognito-tab">Gizli Sekme</span>
+        </button>
+
+        <button id="history-btn" class="sidebar-btn" title="Geçmiş">
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path
+              d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"
+              fill="currentColor" />
+          </svg>
+          <span class="btn-text" data-i18n="history">Geçmiş</span>
+        </button>
+
+        <button id="downloads-btn" class="sidebar-btn" title="İndirmeler">
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path
+              d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"
+              fill="currentColor" />
+          </svg>
+          <span class="btn-text" data-i18n="downloads">İndirmeler</span>
+        </button>
+
+        <button id="settings-btn" class="sidebar-btn" title="Ayarlar">
+          <svg viewBox="0 0 24 24" width="20" height="20">
+            <path
+              d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+              fill="currentColor" />
+          </svg>
+          <span class="btn-text" data-i18n="settings">Ayarlar</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Workspace (Top bar & Browser Web view) -->
+    <main id="main-content">
+      <!-- Top Navigation & Control Area -->
+      <section id="top-bar">
+        <div class="nav-controls">
+          <button id="nav-back" class="nav-btn" title="Geri">
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" fill="currentColor" />
+            </svg>
+          </button>
+          <button id="nav-forward" class="nav-btn" title="İleri">
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" fill="currentColor" />
+            </svg>
+          </button>
+          <button id="nav-reload" class="nav-btn" title="Yenile">
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path
+                d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"
+                fill="currentColor" />
+            </svg>
+          </button>
+          <button id="nav-home" class="nav-btn" title="Anasayfa" style="display: none;">
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" fill="currentColor" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Unified Sleek Address Bar -->
+
+        <!-- Address Bar Container (for autocomplete dropdown) -->
+        <div class="address-bar-container">
+          <div class="address-bar-wrapper">
+            <div id="security-indicator" class="security-indicator">
+              <!-- Security icon will be populated dynamically -->
+            </div>
+            <div class="search-icon">
+              <svg viewBox="0 0 24 24" width="16" height="16">
+                <path
+                  d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+                  fill="currentColor" />
+              </svg>
+            </div>
+            <input type="text" id="address-input" placeholder="Bir URL girin veya arama yapın..." spellcheck="false"
+              autocomplete="off">
+            <div class="address-bar-actions">
+              <button id="zoom-indicator-btn" class="address-action-btn zoom-btn" style="display: none;"
+                title="Yakınlaştırmayı Sıfırla">
+                <span id="zoom-value-text" style="font-size: 10px; font-weight: 600; padding: 0 4px;">100%</span>
+              </button>
+              <button id="add-bookmark-btn" class="address-action-btn" title="Bu sayfayı yer imlerine ekle">
+                <svg viewBox="0 0 24 24" width="16" height="16">
+                  <path
+                    d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"
+                    fill="currentColor" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Permission Bar Overlay -->
+      <div id="permission-bar" class="permission-bar" style="display: none;">
+        <div class="permission-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path
+              d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
+          </svg>
+        </div>
+        <div class="permission-message">
+          <span id="permission-domain"></span> <span data-i18n="permission-msg">bildirim göndermek istiyor.</span>
+        </div>
+        <div class="permission-actions">
+          <button id="permission-allow-btn" class="permission-btn allow-btn" data-i18n="permission-allow">İzin
+            Ver</button>
+          <button id="permission-block-btn" class="permission-btn block-btn"
+            data-i18n="permission-block">Engelle</button>
+        </div>
+      </div>
+
+      <!-- Password Save Bar Overlay -->
+      <div id="password-save-bar" class="permission-bar password-save-bar" style="display: none;">
+        <div class="permission-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path
+              d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" />
+          </svg>
+        </div>
+        <div class="permission-message">
+          <span id="password-save-message"></span>
+        </div>
+        <div class="permission-actions">
+          <button id="password-save-btn" class="permission-btn allow-btn" data-i18n="modal-save">Kaydet</button>
+          <button id="password-cancel-btn" class="permission-btn block-btn" data-i18n="modal-cancel">İptal</button>
+        </div>
+      </div>
+
+      <!-- Bookmarks Bar -->
+      <div id="bookmarks-bar" class="bookmarks-bar" style="display: none;">
+        <div id="bookmarks-bar-list" class="bookmarks-bar-list"></div>
+      </div>
+
+      <!-- Find In Page Bar (hidden by default) -->
+      <div id="find-bar" class="find-bar" style="display: none;">
+        <div class="find-bar-search">
+          <input type="text" id="find-input" placeholder="Sayfada ara..." autocomplete="off" spellcheck="false">
+          <span id="find-results-count">0/0</span>
+        </div>
+        <div class="find-bar-controls">
+          <button id="find-prev" class="find-btn" title="Önceki">
+            <svg viewBox="0 0 24 24" width="14" height="14">
+              <path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z" fill="currentColor" />
+            </svg>
+          </button>
+          <button id="find-next" class="find-btn" title="Sonraki">
+            <svg viewBox="0 0 24 24" width="14" height="14">
+              <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z" fill="currentColor" />
+            </svg>
+          </button>
+          <button id="find-close" class="find-btn find-close-btn" title="Kapat">
+            <svg viewBox="0 0 24 24" width="14" height="14">
+              <path
+                d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                fill="currentColor" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Web Content View Container -->
+      <div id="content-area">
+        <!-- Electron WebContentsView will overlay this area exactly -->
+      </div>
+    </main>
+
+    <!-- Slide-over Panels -->
+    <!-- Bookmarks Panel -->
+    <div id="bookmarks-panel" class="side-panel">
+      <div class="panel-header">
+        <h3 data-i18n="bookmarks">Yer İmleri</h3>
+        <button id="close-bookmarks" class="panel-close-btn">&times;</button>
+      </div>
+      <div class="panel-search" style="display: flex; gap: 8px; align-items: center;">
+        <input type="text" id="bookmarks-search-input" data-i18n-placeholder="search-bookmarks-placeholder"
+          placeholder="Yer imlerinde ara..." autocomplete="off" style="flex: 1; min-width: 0;">
+        <button id="add-folder-btn" class="panel-header-action-btn" title="Yeni Klasör Oluştur"
+          style="background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-main); cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; border-radius: 8px; height: 32px; width: 32px; transition: all 0.2s;">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path
+              d="M20 6h-8l-2-2H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z" />
+          </svg>
+        </button>
+      </div>
+      <div id="bookmarks-list" class="panel-content">
+        <!-- Rendered bookmarks -->
+      </div>
+    </div>
+
+    <!-- History Panel -->
+    <div id="history-panel" class="settings-overlay">
+      <div class="panel-header">
+        <h3 data-i18n="history">Geçmiş</h3>
+        <div class="header-actions">
+          <button id="clear-history-btn" class="clear-btn" data-i18n="clear-history">Temizle</button>
+          <button id="close-history" class="panel-close-btn">&times;</button>
+        </div>
+      </div>
+      <div class="panel-search">
+        <input type="text" id="history-search-input" data-i18n-placeholder="search-history-placeholder"
+          placeholder="Geçmişte ara..." autocomplete="off">
+      </div>
+      <div class="history-filter-row">
+        <button class="history-filter-btn active" data-history-filter="all" data-i18n="history-filter-all">Tümü</button>
+        <button class="history-filter-btn" data-history-filter="today" data-i18n="history-filter-today">Bugün</button>
+        <button class="history-filter-btn" data-history-filter="week" data-i18n="history-filter-week">Son 7 Gün</button>
+      </div>
+      <div id="history-list" class="panel-content history-timeline">
+        <!-- Rendered history -->
+      </div>
+    </div>
+
+    <!-- Downloads Full-Screen Overlay -->
+    <div id="downloads-overlay" class="settings-overlay">
+      <div class="settings-layout">
+        <!-- Downloads Sidebar Navigation -->
+        <nav class="settings-nav">
+          <div class="settings-nav-header">
+            <h2 data-i18n="downloads">İndirmeler</h2>
+            <button id="close-downloads" class="settings-close-btn" title="Kapat">
+              <svg viewBox="0 0 24 24" width="20" height="20">
+                <path
+                  d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                  fill="currentColor" />
+              </svg>
+            </button>
+          </div>
+          <div class="settings-nav-list">
+            <button class="settings-nav-item active" data-downloads-filter="all">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path
+                  d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"
+                  fill="currentColor" />
+              </svg>
+              <span data-i18n="downloads-all">Tüm İndirmeler</span>
+            </button>
+            <button class="settings-nav-item" data-downloads-filter="progressing">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path
+                  d="M12 4V1l-4 4 4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm-1.1 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L4.14 7.74C3.46 8.97 3 10.43 3 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"
+                  fill="currentColor" />
+              </svg>
+              <span data-i18n="downloads-progressing">Devam Edenler</span>
+            </button>
+            <button class="settings-nav-item" data-downloads-filter="completed">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" fill="currentColor" />
+              </svg>
+              <span data-i18n="downloads-completed">Tamamlananlar</span>
+            </button>
+          </div>
+
+          <div class="settings-nav-footer" style="border-top: 1px solid var(--border-color); padding: 16px 20px;">
+            <button id="clear-downloads-btn" class="settings-action-btn danger" style="width: 100%;"
+              data-i18n="clear-history">Temizle</button>
+          </div>
+        </nav>
+
+        <!-- Downloads Main Content Area -->
+        <div class="settings-main">
+          <div class="settings-tab-content active" style="max-width: 840px;">
+            <div class="settings-page-header"
+              style="display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap;">
+              <div>
+                <h3 id="downloads-header-title" data-i18n="downloads">İndirmeler</h3>
+                <p id="downloads-header-desc" class="settings-page-desc" data-i18n="downloads-desc">İndirdiğiniz tüm
+                  dosyaları bu panelden arayabilir ve yönetebilirsiniz.</p>
+              </div>
+              <div class="panel-search" style="margin: 0; padding: 0; background: none;">
+                <input type="text" id="downloads-search-input" data-i18n-placeholder="search-downloads-placeholder"
+                  placeholder="İndirilenlerde ara..." autocomplete="off" style="width: 260px;">
+              </div>
+            </div>
+
+            <div id="downloads-list" class="downloads-grid-layout">
+              <!-- Rendered downloads -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Full-Screen Overlay -->
+    <div id="settings-overlay" class="settings-overlay">
+      <div class="settings-layout">
+        <!-- Settings Sidebar Navigation -->
+        <nav class="settings-nav">
+          <div class="settings-nav-header">
+            <h2 data-i18n="settings">Ayarlar</h2>
+            <button id="close-settings" class="settings-close-btn" title="Kapat">
+              <svg viewBox="0 0 24 24" width="20" height="20">
+                <path
+                  d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                  fill="currentColor" />
+              </svg>
+            </button>
+          </div>
+          <div class="settings-nav-list">
+            <button class="settings-nav-item active" data-settings-tab="general">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path
+                  d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+                  fill="currentColor" />
+              </svg>
+              <span data-i18n="general">Genel</span>
+            </button>
+            <button class="settings-nav-item" data-settings-tab="privacy">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path
+                  d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"
+                  fill="currentColor" />
+              </svg>
+              <span data-i18n="privacy-security">Gizlilik ve Güvenlik</span>
+            </button>
+            <button class="settings-nav-item" data-settings-tab="appearance">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path
+                  d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-1 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"
+                  fill="currentColor" />
+              </svg>
+              <span data-i18n="appearance">Görünüm</span>
+            </button>
+            <button class="settings-nav-item" data-settings-tab="passwords">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path
+                  d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z" />
+              </svg>
+              <span data-i18n="passwords-autofill">Şifreler</span>
+            </button>
+            <button class="settings-nav-item" data-settings-tab="about">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path
+                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"
+                  fill="currentColor" />
+              </svg>
+              <span data-i18n="about-oslo">Hakkında</span>
+            </button>
+          </div>
+          <div class="settings-nav-footer">
+            <span class="settings-nav-version">OSLO v<span id="about-version-display">1.0.0</span></span>
+          </div>
+        </nav>
+
+        <!-- Settings Content Area -->
+        <div class="settings-main">
+          <!-- General Settings Tab -->
+          <div class="settings-tab-content active" id="settings-tab-general">
+            <div class="settings-page-header">
+              <h3 data-i18n="general-settings">Genel Ayarlar</h3>
+              <p class="settings-page-desc" data-i18n="general-settings-desc">Arama motoru, dil ve başlangıç
+                tercihlerini yapılandırın.</p>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="default-search-engine">Varsayılan Arama Motoru</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="search-engine-desc">Adres çubuğundan arama yaparken
+                    kullanılacak motorunu seçin.</span>
+                </div>
+                <select id="settings-search-engine" class="settings-select">
+                  <option value="google">Google</option>
+                  <option value="duckduckgo">DuckDuckGo</option>
+                  <option value="bing">Bing</option>
+                  <option value="yahoo">Yahoo</option>
+                  <option value="yandex">Yandex</option>
+                  <option value="brave">Brave Search</option>
+                  <option value="ecosia">Ecosia</option>
+                  <option value="startpage">Startpage</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="language-selection">Dil Seçeneği</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="language-desc">Tarayıcı arayüz dilini değiştirin.</span>
+                </div>
+                <select id="settings-language" class="settings-select">
+                  <option value="tr">Türkçe (TR)</option>
+                  <option value="en">English (EN)</option>
+                  <option value="fr">Français (FR)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="startup-behavior">Başlangıç Davranışı</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="show-home-button">Anasayfa Butonunu Göster</span>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-home-checkbox"><span
+                    class="slider"></span></label>
+              </div>
+              <div id="settings-home-url-container" class="settings-card-sub" style="display: none;">
+                <label for="settings-home-url" class="settings-card-label" data-i18n="home-page-url">Anasayfa
+                  Adresi</label>
+                <input type="text" id="settings-home-url" class="settings-input"
+                  data-i18n-placeholder="home-page-url-placeholder" placeholder="https://google.com veya boş bırakın">
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="show-bookmarks-bar">Yer imleri çubuğunu göster</span>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-bookmarks-bar-checkbox"><span
+                    class="slider"></span></label>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="restore-session-startup">Başlangıçta sekmeleri geri
+                    yükle</span>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-session-restore-checkbox"><span
+                    class="slider"></span></label>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="bookmarks">Yer İmleri</div>
+              <div class="settings-card-row" style="gap: 10px;">
+                <button id="settings-import-bookmarks" class="settings-action-btn" data-i18n="import-bookmarks">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" />
+                  </svg>
+                  İçe Aktar
+                </button>
+                <button id="settings-export-bookmarks" class="settings-action-btn" data-i18n="export-bookmarks">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                  </svg>
+                  Dışa Aktar
+                </button>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="performance-settings">Performans</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="sleep-tabs-desc">Boşta kalan sekmeleri otomatik olarak uyutarak bellek tasarrufu sağlar.</span>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-sleep-tabs-checkbox"><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-row" id="settings-sleep-tabs-timeout-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="sleep-tabs-timeout-label">Sekme Uyku Süresi</span>
+                </div>
+                <select id="settings-sleep-tabs-timeout" class="settings-select">
+                  <option value="15" data-i18n="timeout-15m">15 Dakika</option>
+                  <option value="30" data-i18n="timeout-30m">30 Dakika</option>
+                  <option value="60" data-i18n="timeout-1h">1 Saat</option>
+                  <option value="120" data-i18n="timeout-2h">2 Saat</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="download-settings">İndirmeler</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="download-prompt-desc">Her indirmede dosyanın nereye kaydedileceğini sor</span>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-download-prompt-checkbox"><span class="slider"></span></label>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="settings-management">Ayarları Yönet</div>
+              <p class="settings-page-desc" style="margin-top: 4px; margin-bottom: 12px; font-size: 12px; color: var(--text-muted);" data-i18n="settings-management-desc">Tüm ayarlarınızı JSON dosyası olarak yedekleyin, başka bir cihazdan geri yükleyin veya fabrika ayarlarına sıfırlayın.</p>
+              <div class="settings-card-row" style="gap: 10px; flex-wrap: wrap;">
+                <button id="settings-export-settings" class="settings-action-btn">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                  </svg>
+                  <span data-i18n="export-settings">Ayarları Dışa Aktar</span>
+                </button>
+                <button id="settings-import-settings" class="settings-action-btn">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" />
+                  </svg>
+                  <span data-i18n="import-settings">Ayarları İçe Aktar</span>
+                </button>
+                <button id="settings-reset-all" class="settings-action-btn danger">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
+                  </svg>
+                  <span data-i18n="reset-all-settings">Fabrika Ayarlarına Sıfırla</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Privacy & Security Tab -->
+          <div class="settings-tab-content" id="settings-tab-privacy">
+            <div class="settings-page-header">
+              <h3 data-i18n="privacy-security">Gizlilik ve Güvenlik</h3>
+              <p class="settings-page-desc" data-i18n="privacy-desc">Reklam engelleme, HTTPS zorlaması ve veri koruma
+                ayarlarını yönetin.</p>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="adblocker">Reklam Engelleyici</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="adblock-desc">Sayfalardan reklam ve takipçi kodlarını
+                    engeller.</span>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-adblock-checkbox"><span
+                    class="slider"></span></label>
+              </div>
+              <div class="settings-card-stat">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="color: #ef4444;">
+                  <path
+                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                </svg>
+                <span data-i18n="blocked-ads">Engellenen Reklamlar:</span>
+                <strong id="settings-blocked-count">0</strong>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="password-security">Şifre Güvenliği</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info"><span class="settings-card-label" data-i18n="password-security-desc">Zayıf veya tekrar kullanılan kayıtlı şifreleri kontrol edin.</span></div>
+                <label class="switch"><input type="checkbox" id="settings-password-security-warnings" checked><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-actions">
+                <button id="settings-audit-passwords" class="settings-action-btn secondary" data-i18n="password-audit-btn">Şifreleri Tara</button>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="tracking-protection">Takip Koruması</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="tracking-protection-desc">Takip alan adlarına karşı uygulanacak koruma seviyesini seçin.</span>
+                </div>
+                <select id="settings-tracking-protection-level" class="settings-select">
+                  <option value="off" data-i18n="tracking-off">Kapalı</option>
+                  <option value="balanced" data-i18n="tracking-balanced">Dengeli</option>
+                  <option value="strict" data-i18n="tracking-strict">Sıkı</option>
+                </select>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info"><span class="settings-card-label" data-i18n="fingerprint-protection">Parmak izi koruması</span></div>
+                <label class="switch"><input type="checkbox" id="settings-fingerprint-protection" checked><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info"><span class="settings-card-label" data-i18n="global-privacy-control">Global Privacy Control sinyali gönder</span></div>
+                <label class="switch"><input type="checkbox" id="settings-global-privacy-control" checked><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info"><span class="settings-card-label" data-i18n="referer-policy">Referer koruması</span></div>
+                <select id="settings-referer-policy" class="settings-select">
+                  <option value="full" data-i18n="referer-full">Normal</option>
+                  <option value="cross-origin" data-i18n="referer-cross-origin">Siteler arası azalt</option>
+                  <option value="origin-only" data-i18n="referer-origin-only">Sadece kaynak alan adı</option>
+                  <option value="strict" data-i18n="referer-strict">Tamamen gizle</option>
+                </select>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info"><span class="settings-card-label" data-i18n="webrtc-protection">WebRTC IP sızıntısı koruması</span></div>
+                <label class="switch"><input type="checkbox" id="settings-webrtc-protection" checked><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-notice" data-i18n="restart-required-network">Bazı ağ korumaları tarayıcı yeniden başlatıldıktan sonra tam uygulanır.</div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="https-only">HTTPS-Only Modu</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="https-desc">Tüm bağlantıları güvenli HTTPS protokolüne
+                    yükseltmeye çalışır.</span>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-https-checkbox"><span
+                    class="slider"></span></label>
+              </div>
+              <div class="settings-card-sub" id="settings-https-exceptions-container" style="display: none;">
+                <label for="settings-https-exceptions" class="settings-card-label" data-i18n="https-exceptions-desc">HTTPS zorlamasından hariç tutulacak alan adlarını satır satır yazın.</label>
+                <textarea id="settings-https-exceptions" class="settings-textarea" rows="4" placeholder="example.com"></textarea>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="dns-over-https">DNS-over-HTTPS (DoH)</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="dns-desc">DNS sorgularını şifreli bağlantı üzerinden
+                    güvenli bir şekilde yapar.</span>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-dns-checkbox"><span
+                    class="slider"></span></label>
+              </div>
+              <div class="settings-card-sub" id="settings-dns-provider-container" style="display: none;">
+                <label for="settings-dns-provider" class="settings-card-label" data-i18n="dns-provider">DoH
+                  Sağlayıcısı</label>
+                <select id="settings-dns-provider" class="settings-select">
+                  <option value="cloudflare">Cloudflare</option>
+                  <option value="google">Google</option>
+                  <option value="quad9">Quad9</option>
+                  <option value="custom" data-i18n="dns-provider-custom">Özel</option>
+                </select>
+                <input type="text" id="settings-dns-custom-provider" class="settings-input"
+                  data-i18n-placeholder="dns-custom-placeholder"
+                  placeholder="https://dns.example.com/dns-query" style="display: none;">
+              </div>
+              <div id="dns-restart-notice" class="settings-card-notice" style="display: none;"
+                data-i18n="dns-restart-notice">
+                DoH ayarlarının geçerli olması için tarayıcıyı yeniden başlatmalısınız.
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="cookie-management">Çerez Yönetimi</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="cookie-policy-desc">Sitelerin çerezleri nasıl kullanabileceğini belirleyin.</span>
+                </div>
+                <select id="settings-cookie-policy" class="settings-select">
+                  <option value="allow" data-i18n="cookie-policy-allow">Tüm çerezlere izin ver</option>
+                  <option value="block-third-party" data-i18n="cookie-policy-third-party">Üçüncü taraf çerezleri engelle</option>
+                  <option value="block-all" data-i18n="cookie-policy-block-all">Tüm çerezleri engelle</option>
+                </select>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="clear-cookies-on-exit">Çıkışta çerezleri temizle</span>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-clear-cookies-on-exit"><span class="slider"></span></label>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="permissions-center">İzinler Merkezi</div>
+              <div class="settings-card-row"><span class="settings-card-label" data-i18n="permission-notifications">Bildirimler</span><select id="settings-permission-notifications" class="settings-select"><option value="ask" data-i18n="permission-ask">Sor</option><option value="allow" data-i18n="permission-allow-default">İzin ver</option><option value="block" data-i18n="permission-block-default">Engelle</option></select></div>
+              <div class="settings-card-row"><span class="settings-card-label" data-i18n="permission-camera">Kamera</span><select id="settings-permission-camera" class="settings-select"><option value="ask" data-i18n="permission-ask">Sor</option><option value="allow" data-i18n="permission-allow-default">İzin ver</option><option value="block" data-i18n="permission-block-default">Engelle</option></select></div>
+              <div class="settings-card-row"><span class="settings-card-label" data-i18n="permission-microphone">Mikrofon</span><select id="settings-permission-microphone" class="settings-select"><option value="ask" data-i18n="permission-ask">Sor</option><option value="allow" data-i18n="permission-allow-default">İzin ver</option><option value="block" data-i18n="permission-block-default">Engelle</option></select></div>
+              <div class="settings-card-row"><span class="settings-card-label" data-i18n="permission-location">Konum</span><select id="settings-permission-location" class="settings-select"><option value="ask" data-i18n="permission-ask">Sor</option><option value="allow" data-i18n="permission-allow-default">İzin ver</option><option value="block" data-i18n="permission-block-default">Engelle</option></select></div>
+              <div class="settings-card-row"><span class="settings-card-label" data-i18n="permission-clipboard">Pano</span><select id="settings-permission-clipboard" class="settings-select"><option value="ask" data-i18n="permission-ask">Sor</option><option value="allow" data-i18n="permission-allow-default">İzin ver</option><option value="block" data-i18n="permission-block-default">Engelle</option></select></div>
+              <div class="settings-card-row"><span class="settings-card-label" data-i18n="permission-autoplay">Otomatik oynatma</span><select id="settings-permission-autoplay" class="settings-select"><option value="allow" data-i18n="permission-allow-default">İzin ver</option><option value="block" data-i18n="permission-block-default">Engelle</option></select></div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="download-security">Güvenli İndirme</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info"><span class="settings-card-label" data-i18n="dangerous-downloads-desc">Riskli dosya türleri için uyarı gösterin veya engelleyin.</span></div>
+                <select id="settings-dangerous-downloads" class="settings-select">
+                  <option value="off" data-i18n="download-protection-off">Kapalı</option>
+                  <option value="warn" data-i18n="download-protection-warn">Uyar</option>
+                  <option value="block" data-i18n="download-protection-block">Engelle</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="incognito-defaults">Gizli Mod Varsayılanları</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info"><span class="settings-card-label" data-i18n="incognito-forget-downloads">Gizli mod indirme geçmişini saklama</span></div>
+                <label class="switch"><input type="checkbox" id="settings-incognito-forget-downloads" checked><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info"><span class="settings-card-label" data-i18n="incognito-block-third-party-cookies">Gizli modda üçüncü taraf çerezleri engelle</span></div>
+                <label class="switch"><input type="checkbox" id="settings-incognito-block-third-party-cookies" checked><span class="slider"></span></label>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="data-management">Veri Yönetimi</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="history-limit-label">Geçmiş Depolama Limiti</span>
+                </div>
+                <select id="settings-history-limit" class="settings-select" style="width: 120px;">
+                  <option value="500">500</option>
+                  <option value="1000">1000</option>
+                  <option value="2000" selected>2000</option>
+                  <option value="5000">5000</option>
+                </select>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info"><span class="settings-card-label" data-i18n="clear-history-on-exit">Çıkışta geçmişi temizle</span></div>
+                <label class="switch"><input type="checkbox" id="settings-clear-history-on-exit"><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info"><span class="settings-card-label" data-i18n="clear-cache-on-exit">Çıkışta önbelleği temizle</span></div>
+                <label class="switch"><input type="checkbox" id="settings-clear-cache-on-exit"><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info"><span class="settings-card-label" data-i18n="clear-local-storage-on-exit">Çıkışta site depolamasını temizle</span></div>
+                <label class="switch"><input type="checkbox" id="settings-clear-local-storage-on-exit"><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info"><span class="settings-card-label" data-i18n="clear-downloads-on-exit">Çıkışta indirme geçmişini temizle</span></div>
+                <label class="switch"><input type="checkbox" id="settings-clear-downloads-on-exit"><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-actions">
+                <button id="settings-manage-permissions" class="settings-action-btn secondary"
+                  data-i18n="manage-permissions-btn">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" />
+                  </svg>
+                  İzinleri Yönet
+                </button>
+                <button id="settings-manage-site-data" class="settings-action-btn secondary"
+                  data-i18n="manage-site-data-btn">Site Verilerini Yönet</button>
+                <button id="settings-manage-certificates" class="settings-action-btn secondary"
+                  data-i18n="manage-certificates-btn">Sertifikaları Yönet</button>
+                <button id="settings-clear-history" class="settings-action-btn danger"
+                  data-i18n="clear-browsing-history">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                  </svg>
+                  Tüm Tarama Geçmişini Temizle
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Appearance Tab -->
+          <div class="settings-tab-content" id="settings-tab-appearance">
+            <div class="settings-page-header">
+              <h3 data-i18n="appearance">Görünüm</h3>
+              <p class="settings-page-desc" data-i18n="appearance-desc">Temayı, arka planı ve özel CSS kodunu ayarlayın.
+              </p>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="theme-mode">Tema Modu</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="theme-mode-desc">Arayüz temasını seçin veya sistem temasını takip edin.</span>
+                </div>
+                <select id="settings-theme-mode" class="settings-select">
+                  <option value="dark" data-i18n="theme-dark">Koyu</option>
+                  <option value="light" data-i18n="theme-light">Açık</option>
+                  <option value="system" data-i18n="theme-system">Sistem</option>
+                </select>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="accent-color">Vurgu Rengi</span>
+                </div>
+                <div class="settings-color-control">
+                  <input type="color" id="settings-accent-color" class="settings-color-input" value="#00ddff">
+                  <div class="settings-color-swatches" aria-label="Accent presets">
+                    <button class="settings-color-swatch" data-accent="#00ddff" style="--swatch-color: #00ddff;" title="Cyan"></button>
+                    <button class="settings-color-swatch" data-accent="#22c55e" style="--swatch-color: #22c55e;" title="Green"></button>
+                    <button class="settings-color-swatch" data-accent="#f59e0b" style="--swatch-color: #f59e0b;" title="Amber"></button>
+                    <button class="settings-color-swatch" data-accent="#ec4899" style="--swatch-color: #ec4899;" title="Pink"></button>
+                    <button class="settings-color-swatch" data-accent="#8b5cf6" style="--swatch-color: #8b5cf6;" title="Violet"></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="interface-density">Arayüz Yoğunluğu</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="compact-mode">Kompakt Mod</span>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-compact-mode"><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="ui-font-size">Yazı Boyutu</span>
+                </div>
+                <select id="settings-ui-font-size" class="settings-select">
+                  <option value="small" data-i18n="font-small">Küçük</option>
+                  <option value="normal" data-i18n="font-normal">Normal</option>
+                  <option value="large" data-i18n="font-large">Büyük</option>
+                </select>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="default-page-zoom">Varsayılan Sayfa Yakınlaştırma</span>
+                </div>
+                <select id="settings-default-page-zoom" class="settings-select">
+                  <option value="0.9">%90</option>
+                  <option value="1">%100</option>
+                  <option value="1.1">%110</option>
+                  <option value="1.25">%125</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="tabs-appearance">Sekme Görünümü</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="tab-corner-style">Sekme Köşeleri</span>
+                </div>
+                <select id="settings-tab-corner-style" class="settings-select">
+                  <option value="rounded" data-i18n="tab-rounded">Yuvarlak</option>
+                  <option value="soft" data-i18n="tab-soft">Yumuşak</option>
+                  <option value="square" data-i18n="tab-square">Köşeli</option>
+                </select>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="active-tab-style">Aktif Sekme Vurgusu</span>
+                </div>
+                <select id="settings-active-tab-style" class="settings-select">
+                  <option value="filled" data-i18n="active-tab-filled">Dolgulu</option>
+                  <option value="outline" data-i18n="active-tab-outline">Çerçeve</option>
+                  <option value="underline" data-i18n="active-tab-underline">Alt Çizgi</option>
+                </select>
+              </div>
+              <div class="settings-card-sub">
+                <div class="settings-slider-row">
+                  <label for="settings-tab-height" class="settings-card-label" data-i18n="tab-height">Sekme Yüksekliği</label>
+                  <span id="settings-tab-height-value" class="settings-value-chip">36px</span>
+                </div>
+                <input type="range" id="settings-tab-height" class="settings-range" min="32" max="52" step="2" value="36">
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="sidebar-appearance">Kenar Çubuğu</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="sidebar-auto-hide">Otomatik Gizle</span>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-sidebar-auto-hide"><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="sidebar-icon-only">Sadece Simge Modu</span>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-sidebar-icon-only"><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-sub">
+                <div class="settings-slider-row">
+                  <label for="settings-sidebar-width" class="settings-card-label" data-i18n="sidebar-width">Genişlik</label>
+                  <span id="settings-sidebar-width-value" class="settings-value-chip">240px</span>
+                </div>
+                <input type="range" id="settings-sidebar-width" class="settings-range" min="220" max="320" step="10" value="240">
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="topbar-appearance">Üst Çubuk</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="topbar-auto-hide">Otomatik Gizle</span>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-topbar-auto-hide"><span class="slider"></span></label>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="wallpaper-url">Yeni Sekme Arka Planı</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="newtab-background-type">Arka Plan Türü</span>
+                </div>
+                <select id="settings-newtab-background-type" class="settings-select">
+                  <option value="default" data-i18n="background-default">Varsayılan</option>
+                  <option value="url" data-i18n="background-url">URL</option>
+                  <option value="file" data-i18n="background-file">Dosya</option>
+                  <option value="color" data-i18n="background-color">Düz Renk</option>
+                  <option value="preset" data-i18n="background-preset">Hazır</option>
+                </select>
+              </div>
+              <div class="settings-card-sub" data-background-panel="url">
+                <label for="settings-wallpaper-url" class="settings-card-label" data-i18n="wallpaper-desc">Yeni sekme sayfasında gösterilecek arka plan resmi URL'si.</label>
+                <input type="text" id="settings-wallpaper-url" class="settings-input"
+                  data-i18n-placeholder="wallpaper-url-placeholder"
+                  placeholder="https://resim-adresi.com/resim.jpg veya boş bırakın">
+              </div>
+              <div class="settings-card-sub" data-background-panel="file">
+                <span class="settings-card-label" id="settings-wallpaper-file-label" data-i18n="wallpaper-file-empty">Dosya seçilmedi.</span>
+                <button id="settings-wallpaper-file-btn" class="settings-action-btn secondary" type="button">
+                  <span data-i18n="choose-wallpaper-file">Resim Seç</span>
+                </button>
+              </div>
+              <div class="settings-card-sub" data-background-panel="color">
+                <label for="settings-newtab-background-color" class="settings-card-label" data-i18n="background-color">Düz Renk</label>
+                <input type="color" id="settings-newtab-background-color" class="settings-color-input" value="#0b0c0e">
+              </div>
+              <div class="settings-card-sub" data-background-panel="preset">
+                <label for="settings-newtab-preset-wallpaper" class="settings-card-label" data-i18n="background-preset">Hazır</label>
+                <select id="settings-newtab-preset-wallpaper" class="settings-select">
+                  <option value="aurora" data-i18n="preset-aurora">Aurora</option>
+                  <option value="dawn" data-i18n="preset-dawn">Şafak</option>
+                  <option value="forest" data-i18n="preset-forest">Orman</option>
+                  <option value="mono" data-i18n="preset-mono">Mono</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="newtab-layout">Yeni Sekme Düzeni</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info"><span class="settings-card-label" data-i18n="newtab-show-clock">Saat</span></div>
+                <label class="switch"><input type="checkbox" id="settings-newtab-show-clock" checked><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info"><span class="settings-card-label" data-i18n="newtab-show-date">Tarih</span></div>
+                <label class="switch"><input type="checkbox" id="settings-newtab-show-date" checked><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info"><span class="settings-card-label" data-i18n="newtab-show-weather">Hava Durumu</span></div>
+                <label class="switch"><input type="checkbox" id="settings-newtab-show-weather" checked><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info"><span class="settings-card-label" data-i18n="newtab-show-search">Arama Kutusu</span></div>
+                <label class="switch"><input type="checkbox" id="settings-newtab-show-search" checked><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info"><span class="settings-card-label" data-i18n="newtab-show-shortcuts">Hızlı Erişimler</span></div>
+                <label class="switch"><input type="checkbox" id="settings-newtab-show-shortcuts" checked><span class="slider"></span></label>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="visual-effects">Efektler</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="reduce-motion">Animasyonları Azalt</span>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-reduce-motion"><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="transparency-enabled">Şeffaflık ve Blur Efekti</span>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-transparency-enabled" checked><span class="slider"></span></label>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="custom-css">Özel CSS Kodu</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="custom-css-enabled">Özel CSS Etkin</span>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-custom-css-enabled" checked><span class="slider"></span></label>
+              </div>
+              <div class="settings-card-sub">
+                <label for="settings-custom-css" class="settings-card-label" data-i18n="css-desc">Tarayıcı arayüzüne kendi CSS kurallarınızı ekleyin.</label>
+                <textarea id="settings-custom-css" class="settings-textarea"
+                  placeholder="body { filter: contrast(1.05); } ..." rows="8"></textarea>
+                <div class="settings-card-actions">
+                  <button id="settings-custom-css-preview" class="settings-action-btn secondary" type="button" data-i18n="custom-css-preview">Önizle</button>
+                  <button id="settings-custom-css-save" class="settings-action-btn accent" type="button" data-i18n="custom-css-save">Kaydet</button>
+                  <button id="settings-custom-css-reset" class="settings-action-btn danger" type="button" data-i18n="custom-css-reset">Sıfırla</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- About Tab -->
+          <div class="settings-tab-content" id="settings-tab-about">
+            <div class="settings-page-header">
+              <h3 data-i18n="about-oslo">OSLO Hakkında</h3>
+              <p class="settings-page-desc" data-i18n="about-desc">Sürüm bilgileri, güncellemeler ve tanılama araçları.</p>
+            </div>
+
+            <div class="settings-card settings-about-card">
+              <div class="settings-about-logo">
+                <img src="../../assets/logo.svg" width="48" height="48" alt="OSLO" class="settings-logo-spin">
+                <div class="settings-about-info">
+                  <span class="settings-about-name">OSLO Browser</span>
+                  <span class="settings-about-ver">v<span id="about-version-display-main">1.0.0</span></span>
+                </div>
+              </div>
+              <div id="update-status-message" class="settings-update-msg" style="display: none;"></div>
+              <button id="btn-check-updates" class="settings-action-btn accent" data-i18n="check-updates">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="vertical-align: middle; margin-right: 4px;"><path d="M21 10.12h-6.78l2.74-2.82c-2.73-2.7-7.15-2.8-9.88-.1-2.73 2.71-2.73 7.08 0 9.79s7.15 2.71 9.88 0C18.32 15.65 19 14.08 19 12.1h2c0 1.98-.88 4.55-2.64 6.29-3.51 3.48-9.21 3.48-12.72 0-3.5-3.47-3.5-9.11 0-12.58 3.51-3.47 9.14-3.49 12.65-.04L21 3v7.12z"/></svg>
+                Güncellemeleri Denetle
+              </button>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="browser-info-title">Tarayıcı Bilgileri</div>
+              <div class="system-info-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; font-size: 13px; color: var(--text-main);">
+                <div class="sys-info-item" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background-color: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                  <span style="color: var(--text-muted);" data-i18n="sys-electron">Electron:</span>
+                  <span id="sys-val-electron" style="font-weight: 500;">-</span>
+                </div>
+                <div class="sys-info-item" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background-color: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                  <span style="color: var(--text-muted);" data-i18n="sys-chrome">Chromium:</span>
+                  <span id="sys-val-chrome" style="font-weight: 500;">-</span>
+                </div>
+                <div class="sys-info-item" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background-color: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                  <span style="color: var(--text-muted);" data-i18n="sys-node">Node.js:</span>
+                  <span id="sys-val-node" style="font-weight: 500;">-</span>
+                </div>
+                <div class="sys-info-item" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background-color: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                  <span style="color: var(--text-muted);" data-i18n="sys-v8">V8 Engine:</span>
+                  <span id="sys-val-v8" style="font-weight: 500;">-</span>
+                </div>
+                <div class="sys-info-item" style="grid-column: span 2; display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; background-color: var(--bg-tertiary); border-radius: 6px; border: 1px solid var(--border-color);">
+                  <span style="color: var(--text-muted);" data-i18n="sys-useragent">Kullanıcı Aracısı (User Agent):</span>
+                  <span id="sys-val-useragent" style="font-weight: 500; font-size: 11px; word-break: break-all; line-height: 1.4; text-align: left;">-</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="diagnostics-utilities">Tanılama ve Araçlar</div>
+              <p class="settings-page-desc" style="margin-top: 4px; margin-bottom: 12px; font-size: 12px; color: var(--text-muted);" data-i18n="diagnostics-utilities-desc">Tanılama günlüklerine göz atın veya tarayıcı verilerini temizleyerek belleği boşaltın.</p>
+              <div class="settings-card-actions" style="display: flex; gap: 10px;">
+                <button id="btn-show-telemetry" class="settings-action-btn secondary" data-i18n="show-telemetry">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="vertical-align: middle; margin-right: 4px;"><path d="M19.5 3.5L18 2l-1.5 1.5L15 2l-1.5 1.5L12 2l-1.5 1.5L9 2 7.5 3.5 6 2 4.5 3.5 3 2v20l1.5-1.5L6 22l1.5-1.5L9 22l1.5-1.5L12 22l1.5-1.5L15 22l1.5-1.5L18 22l1.5-1.5L21 22V2l-1.5 1.5zM19 19.09H5V4.91h14v14.18zM6 15h12v2H6zm0-4h12v2H6zm0-4h12v2H6z"/></svg>
+                  Telemetri Günlüğünü Göster
+                </button>
+                <button id="btn-clear-browser-data" class="settings-action-btn secondary" style="border-color: rgba(239, 68, 68, 0.2); color: #f87171;" data-i18n="clear-data">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="vertical-align: middle; margin-right: 4px;"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                  Tarayıcı Verilerini Temizle
+                </button>
+              </div>
+            </div>
+
+            <div class="settings-card" style="text-align: center; padding: 20px;">
+              <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">
+                <span data-i18n="about-credits">OSLO Browser, OSLO Ekibi tarafından sevgiyle geliştirilmiştir.</span>
+              </div>
+              <div style="display: flex; justify-content: center; gap: 14px; font-size: 13px;">
+                <a href="#" id="link-visit-website" style="color: var(--accent-color); text-decoration: none;" data-i18n="visit-website">Web Sitesini Ziyaret Et</a>
+                <span style="color: var(--border-color);">|</span>
+                <span style="color: var(--text-muted);">© 2026 OSLO Browser</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Passwords & Autofill Tab -->
+          <div class="settings-tab-content" id="settings-tab-passwords">
+            <div class="settings-page-header">
+              <h3 data-i18n="passwords-autofill">Şifreler ve Otomatik Doldurma</h3>
+              <p class="settings-page-desc" data-i18n="passwords-desc">Kayıtlı şifrelerinizi ve otomatik doldurma
+                ayarlarınızı yönetin.</p>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="autofill-settings">Otomatik Doldurma Ayarları</div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="save-passwords-label">Şifreleri Kaydetmeyi Teklif
+                    Et</span>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-save-passwords-checkbox" checked><span
+                    class="slider"></span></label>
+              </div>
+              <div class="settings-card-row">
+                <div class="settings-card-info">
+                  <span class="settings-card-label" data-i18n="autofill-passwords-label">Şifreleri ve Kullanıcı Adlarını
+                    Otomatik Doldur</span>
+                </div>
+                <label class="switch"><input type="checkbox" id="settings-autofill-checkbox" checked><span
+                    class="slider"></span></label>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="passwords-backup-title">Yedekle ve Geri Yükle</div>
+              <p class="settings-page-desc"
+                style="margin-top: 4px; margin-bottom: 12px; font-size: 12px; color: var(--text-muted);"
+                data-i18n="passwords-backup-desc">Şifrelerinizi CSV dosyası olarak dışarı aktarabilir veya başka bir
+                tarayıcıdan aktarılmış şifreleri içe aktarabilirsiniz.</p>
+              <div style="display: flex; gap: 10px;">
+                <button id="settings-passwords-import-btn" class="settings-action-btn">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"
+                    style="vertical-align: middle; margin-right: 4px;">
+                    <path
+                      d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z" />
+                  </svg>
+                  <span data-i18n="passwords-import">Şifreleri İçe Aktar</span>
+                </button>
+                <button id="settings-passwords-export-btn" class="settings-action-btn">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"
+                    style="vertical-align: middle; margin-right: 4px;">
+                    <path
+                      d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z" />
+                  </svg>
+                  <span data-i18n="passwords-export">Şifreleri Dışarı Aktar</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="saved-passwords">Kayıtlı Şifreler</div>
+              <div class="saved-passwords-container" style="margin-top: 14px;">
+                <div id="saved-passwords-list" class="saved-passwords-list"
+                  style="display: flex; flex-direction: column; gap: 8px;">
+                  <!-- Dynamically populated -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Clear History Modal -->
+  <div id="clear-history-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 data-i18n="clear-history-title">Tarama Verilerini Temizle</h3>
+        <button id="close-clear-history-modal" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-item">
+          <label for="clear-history-range" data-i18n="clear-history-range-label">Zaman aralığı</label>
+          <select id="clear-history-range">
+            <option value="hour" data-i18n="range-hour">Son 1 saat</option>
+            <option value="day" data-i18n="range-day">Son 24 saat</option>
+            <option value="week" data-i18n="range-week">Son 7 gün</option>
+            <option value="all" data-i18n="range-all" selected>Tüm zamanlar</option>
+          </select>
+        </div>
+        <div style="margin-top: 14px; font-size: 12px; color: var(--text-muted); line-height: 1.4;">
+          <p data-i18n="clear-history-info">Bu işlem, seçilen zaman aralığındaki tüm arama geçmişini ve ziyaret edilen
+            sitelerin listesini kalıcı olarak silecektir.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-cancel-clear-history" class="modal-btn secondary-btn" data-i18n="modal-cancel">İptal</button>
+        <button id="btn-confirm-clear-history" class="modal-btn primary-btn"
+          style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); color: #fff; border:none;"
+          data-i18n="clear-data-btn">Verileri Temizle</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Clear Browser Data Modal -->
+  <div id="clear-browser-data-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="clear-browser-data-title" data-i18n="clear-browser-data-title">Tarayıcı Verilerini Temizle</h3>
+        <button id="close-clear-browser-data-modal" class="modal-close-btn">&times;</button>
+      </div>
+      <div id="clear-browser-data-body" class="modal-body">
+        <div style="font-size: 13px; color: var(--text-main); line-height: 1.5;">
+          <p id="clear-browser-data-confirm-text" data-i18n="clear-data-confirm">Tüm önbellek, çerezler, yerel depolama verileri ve tarayıcı verileri temizlenecek. Devam etmek istiyor musunuz?</p>
+        </div>
+      </div>
+      <div class="modal-footer" id="clear-browser-data-footer">
+        <button id="btn-cancel-clear-browser-data" class="modal-btn secondary-btn" data-i18n="modal-cancel">İptal</button>
+        <button id="btn-confirm-clear-browser-data" class="modal-btn primary-btn"
+          style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); color: #fff; border:none;"
+          data-i18n="clear-data">Temizle</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Update Modal -->
+  <div id="update-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 data-i18n="update-available-title">Yeni Sürüm Mevcut!</h3>
+        <button id="close-update-modal" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 14px; font-weight: 600; color: var(--accent-color);"><span
+            data-i18n="new-version-text">OSLO Browser v</span><span id="update-modal-version">1.1.0</span></p>
+        <p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;" data-i18n="release-notes-label">
+          Yenilikler:</p>
+        <pre id="update-modal-notes"
+          style="background-color: var(--bg-tertiary); padding: 8px; border-radius: 6px; font-family: monospace; font-size: 11px; margin-top: 4px; white-space: pre-wrap; color: var(--text-main); border: 1px solid var(--border-color); max-height: 120px; overflow-y: auto;"></pre>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-cancel-update" class="modal-btn secondary-btn" data-i18n="modal-cancel">İptal</button>
+        <button id="btn-confirm-update" class="modal-btn primary-btn"
+          style="background: var(--accent-gradient); color: #000; border:none;" data-i18n="download-update-btn">Şimdi
+          İndir</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Telemetry Log Modal -->
+  <div id="telemetry-log-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 640px; width: 100%;">
+      <div class="modal-header">
+        <h3 data-i18n="telemetry-logs-title">Telemetri ve Hata Raporları</h3>
+        <button id="close-telemetry-modal" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px; max-height: 400px;">
+        <!-- Sleek Glass Tab Selector -->
+        <div class="telemetry-tabs">
+          <button id="telemetry-tab-events" class="telemetry-tab-btn active" data-tab="events" data-i18n="telemetry-events">Olaylar (Son 20)</button>
+          <button id="telemetry-tab-crashes" class="telemetry-tab-btn" data-tab="crashes" data-i18n="telemetry-crashes">Kilitlenmeler ve Hatalar</button>
+        </div>
+
+        <!-- Telemetry Panes -->
+        <div id="telemetry-events-container" class="telemetry-pane active">
+          <div id="telemetry-events-list" class="telemetry-log-list"></div>
+        </div>
+
+        <div id="telemetry-crashes-container" class="telemetry-pane" style="display: none;">
+          <div id="telemetry-crashes-list" class="telemetry-log-list"></div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; gap: 8px; justify-content: flex-end; align-items: center; width: 100%;">
+        <button id="btn-copy-telemetry" class="modal-btn secondary-btn" style="margin-right: auto; display: flex; align-items: center; gap: 6px;">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+            <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+          </svg>
+          <span data-i18n="telemetry-copy">Kopyala</span>
+        </button>
+        <button id="btn-clear-telemetry" class="modal-btn" style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); color: #fff; border: none; display: flex; align-items: center; gap: 6px;">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+          </svg>
+          <span data-i18n="telemetry-clear">Temizle</span>
+        </button>
+        <button id="btn-close-telemetry-diag" class="modal-btn secondary-btn" data-i18n="modal-close">Kapat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Permissions Manager Modal -->
+  <div id="permissions-manager-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 data-i18n="permissions-title">İzin Yöneticisi</h3>
+        <button id="close-permissions-modal" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 350px; overflow-y: auto;">
+        <div id="permissions-list" class="permissions-list" style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- Permissions list will be rendered here dynamically -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-close-permissions-modal" class="modal-btn secondary-btn" style="width: 100%;"
+          data-i18n="modal-cancel">Kapat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Site Data Modal -->
+  <div id="site-data-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 560px;">
+      <div class="modal-header">
+        <h3 data-i18n="site-data-title">Site Verileri</h3>
+        <button id="close-site-data-modal" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 360px; overflow-y: auto;">
+        <div id="site-data-list" class="privacy-data-list">
+          <!-- Site data list will be rendered here dynamically -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-close-site-data-modal" class="modal-btn secondary-btn" style="width: 100%;"
+          data-i18n="modal-close">Kapat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Certificate Exceptions Modal -->
+  <div id="certificate-exceptions-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 560px;">
+      <div class="modal-header">
+        <h3 data-i18n="certificate-exceptions-title">Sertifika İstisnaları</h3>
+        <button id="close-certificate-exceptions-modal" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 360px; overflow-y: auto;">
+        <div id="certificate-exceptions-list" class="privacy-data-list">
+          <!-- Certificate exception list will be rendered here dynamically -->
+        </div>
+      </div>
+      <div class="modal-footer" style="gap: 8px;">
+        <button id="btn-clear-certificate-exceptions" class="modal-btn"
+          style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); color: #fff; border:none;"
+          data-i18n="clear-certificate-exceptions">Tümünü Temizle</button>
+        <button id="btn-close-certificate-exceptions-modal" class="modal-btn secondary-btn"
+          data-i18n="modal-close">Kapat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Password Audit Modal -->
+  <div id="password-audit-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 id="password-audit-modal-title" data-i18n="password-audit-title">Şifre Güvenlik Analizi</h3>
+        <button id="close-password-audit-modal" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 400px; overflow-y: auto;">
+        
+        <!-- Scanning / Loading State -->
+        <div id="password-audit-loading" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 40px 0;">
+          <div class="settings-logo-spin" style="width: 48px; height: 48px; border: 4px solid rgba(255,255,255,0.1); border-top-color: var(--accent-color); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+          <span style="font-size: 14px; color: var(--text-main); font-weight: 500;" data-i18n="password-audit-scanning">Şifreleriniz taranıyor...</span>
+        </div>
+
+        <!-- Results State -->
+        <div id="password-audit-results" style="display: none; flex-direction: column; gap: 16px; width: 100%;">
+          
+          <!-- Summary Cards -->
+          <div style="display: flex; gap: 10px; width: 100%;">
+            <div class="audit-stat-card" style="flex: 1; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+              <span style="font-size: 11px; color: var(--text-muted);" data-i18n="password-audit-total">Toplam</span>
+              <strong id="audit-total-count" style="font-size: 20px; color: var(--accent-color);">0</strong>
+            </div>
+            <div class="audit-stat-card" style="flex: 1; padding: 12px; border-radius: 12px; background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+              <span style="font-size: 11px; color: #f87171;" data-i18n="password-audit-weak-count">Zayıf</span>
+              <strong id="audit-weak-count" style="font-size: 20px; color: #ef4444;">0</strong>
+            </div>
+            <div class="audit-stat-card" style="flex: 1; padding: 12px; border-radius: 12px; background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+              <span style="font-size: 11px; color: #fbbf24;" data-i18n="password-audit-reused-count">Tekrar Alan</span>
+              <strong id="audit-reused-count" style="font-size: 20px; color: #f59e0b;">0</strong>
+            </div>
+          </div>
+
+          <!-- All Safe Message -->
+          <div id="audit-all-safe" style="display: none; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 20px 0;">
+            <div style="width: 48px; height: 48px; border-radius: 50%; background-color: rgba(16, 185, 129, 0.1); color: #10b981; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(16, 185, 129, 0.2); animation: pulse 2s infinite;">
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+              </svg>
+            </div>
+            <h4 style="font-size: 14px; font-weight: 600; color: #10b981; margin: 0;" data-i18n="password-audit-no-issues">Güvenlik riski bulunamadı!</h4>
+            <p style="font-size: 12px; color: var(--text-muted); margin: 0; line-height: 1.4;">Tüm şifreleriniz güçlü ve benzersiz görünüyor.</p>
+          </div>
+
+          <!-- Risks List Container -->
+          <div id="audit-risks-container" style="display: flex; flex-direction: column; gap: 8px;">
+            <h4 style="font-size: 12px; font-weight: 600; color: var(--text-main); margin: 0 0 4px 0;" data-i18n="password-audit-issue-list">Bulunan Riskler</h4>
+            <div id="audit-risks-list" style="display: flex; flex-direction: column; gap: 8px;">
+              <!-- Risk rows rendered dynamically -->
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button id="btn-close-password-audit-modal" class="modal-btn secondary-btn" style="width: 100%;" data-i18n="modal-close">Kapat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bookmark Edit Modal -->
+  <div id="bookmark-edit-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="bookmark-modal-title" data-i18n="edit-bookmark-title">Yer İmini Düzenle</h3>
+        <button id="close-bookmark-edit-modal" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-item" style="margin-bottom: 12px;">
+          <label for="bookmark-edit-name" data-i18n="modal-name">Ad</label>
+          <input type="text" id="bookmark-edit-name"
+            style="background-color: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px; border-radius: 8px; font-size: 12px; outline: none; width: 100%; box-sizing: border-box;">
+        </div>
+        <div class="settings-item">
+          <label for="bookmark-edit-url" data-i18n="modal-url">URL Adresi</label>
+          <input type="text" id="bookmark-edit-url"
+            style="background-color: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px; border-radius: 8px; font-size: 12px; outline: none; width: 100%; box-sizing: border-box;">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-delete-bookmark-edit" class="modal-btn"
+          style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); color: #fff; border:none; margin-right: auto; display: none;"
+          data-i18n="modal-delete">Sil</button>
+        <button id="btn-cancel-bookmark-edit" class="modal-btn secondary-btn" data-i18n="modal-cancel">İptal</button>
+        <button id="btn-save-bookmark-edit" class="modal-btn primary-btn"
+          style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #fff; border:none;"
+          data-i18n="modal-save">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab Context Menu -->
+  <div id="tab-context-menu" class="context-menu">
+    <div class="context-menu-item" id="ctx-new-tab">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+      </svg>
+      <span data-i18n="ctx-new-tab">Yeni Sekme</span>
+    </div>
+    <div class="context-menu-item" id="ctx-reload-tab">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+        <path
+          d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" />
+      </svg>
+      <span data-i18n="ctx-reload-tab">Yenile</span>
+    </div>
+    <div class="context-menu-item" id="ctx-pin-tab">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+        <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6l1.8 1.8 1.8-1.8v-6H18v-2l-2-2z" />
+      </svg>
+      <span data-i18n="ctx-pin-tab">Sekmeyi Sabitle</span>
+    </div>
+    <div class="context-menu-item" id="ctx-unpin-tab" style="display: none;">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+        <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6l1.8 1.8 1.8-1.8v-6H18v-2l-2-2z" transform="rotate(45 12 12)" />
+      </svg>
+      <span data-i18n="ctx-unpin-tab">Sabitlemeyi Kaldır</span>
+    </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item" id="ctx-sleep-tab">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+        <path
+          d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z" />
+      </svg>
+      <span data-i18n="ctx-sleep-tab">Sekmeyi Uyut</span>
+    </div>
+    <div class="context-menu-item" id="ctx-mute-tab" style="display: none;">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+        <path
+          d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77zm-9 5.77H1v6h4l5 5V4L5 9z" />
+      </svg>
+      <span data-i18n="ctx-mute-tab">Sesi Kapat</span>
+    </div>
+    <div class="context-menu-item" id="ctx-unmute-tab" style="display: none;">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+        <path
+          d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.21.05-.42.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
+      </svg>
+      <span data-i18n="ctx-unmute-tab">Sesi Aç</span>
+    </div>
+    <div class="context-menu-item" id="ctx-close-tab">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+        <path
+          d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+      </svg>
+      <span data-i18n="ctx-close-tab">Kapat</span>
+    </div>
+    <div class="context-menu-item" id="ctx-close-others">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+        <path
+          d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+      </svg>
+      <span data-i18n="ctx-close-others">Diğerlerini Kapat</span>
+    </div>
+  </div>
+
+  <!-- Bookmarks Bar Context Menu -->
+  <div id="bookmarks-bar-context-menu" class="context-menu">
+    <div class="context-menu-item" id="ctx-add-folder">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+        <path
+          d="M20 6h-8l-2-2H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z" />
+      </svg>
+      <span data-i18n="create-folder">Klasör Ekle</span>
+    </div>
+  </div>
+
+  <!-- Folder Creation Modal -->
+  <div id="folder-create-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="folder-create-modal-title" data-i18n="create-folder">Klasör Ekle</h3>
+        <button id="close-folder-create-modal" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-item">
+          <label for="folder-create-name" data-i18n="modal-name">Ad</label>
+          <input type="text" id="folder-create-name" data-i18n-placeholder="new-folder-placeholder"
+            placeholder="Klasör adı..."
+            style="background-color: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px; border-radius: 8px; font-size: 12px; outline: none; width: 100%; box-sizing: border-box;">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-cancel-folder-create" class="modal-btn secondary-btn" data-i18n="modal-cancel">İptal</button>
+        <button id="btn-confirm-folder-create" class="modal-btn primary-btn"
+          style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #fff; border:none;"
+          data-i18n="modal-save">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Space prompt Modal -->
+  <div id="space-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="space-modal-title">Çalışma Alanı</h3>
+        <button id="close-space-modal" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 400px; overflow-y: auto;">
+        <div class="settings-item" style="margin-bottom: 12px;">
+          <label for="space-modal-input" id="space-modal-label">Çalışma Alanı Adı</label>
+          <input type="text" id="space-modal-input"
+            style="background-color: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px; border-radius: 8px; font-size: 12px; outline: none; width: 100%; box-sizing: border-box;">
+        </div>
+        <!-- Emoji Selection Grid -->
+        <div class="settings-item" style="margin-bottom: 12px;">
+          <label style="margin-bottom: 4px; display: block;" data-i18n="select-emoji">İkon Seçin</label>
+          <div id="space-add-emoji-grid"
+            style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; padding: 6px; background: var(--bg-tertiary); border-radius: 8px; border: 1px solid var(--border-color);">
+            <!-- Emojis populated by JS -->
+          </div>
+        </div>
+        <!-- Color Selection Grid -->
+        <div class="settings-item">
+          <label style="margin-bottom: 4px; display: block;" data-i18n="select-color">Renk Seçin</label>
+          <div id="space-add-color-grid"
+            style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; padding: 6px; background: var(--bg-tertiary); border-radius: 8px; border: 1px solid var(--border-color);">
+            <!-- Colors populated by JS -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-cancel-space-modal" class="modal-btn secondary-btn" data-i18n="modal-cancel">İptal</button>
+        <button id="btn-confirm-space-modal" class="modal-btn primary-btn"
+          style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #fff; border:none;"
+          data-i18n="modal-save">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Space Options Modal -->
+  <div id="space-delete-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="space-delete-modal-title" data-i18n="space-options-title">Çalışma Alanı Seçenekleri</h3>
+        <button id="close-space-delete-modal" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 400px; overflow-y: auto;">
+        <div class="settings-item" style="margin-bottom: 12px;">
+          <label for="space-delete-rename-input" id="space-options-rename-label"
+            data-i18n="space-options-rename-label">Adı Değiştir</label>
+          <input type="text" id="space-delete-rename-input"
+            style="background-color: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px; border-radius: 8px; font-size: 12px; outline: none; width: 100%; box-sizing: border-box;">
+        </div>
+        <!-- Emoji Selection Grid -->
+        <div class="settings-item" style="margin-bottom: 12px;">
+          <label style="margin-bottom: 4px; display: block;" data-i18n="select-emoji">İkon Seçin</label>
+          <div id="space-options-emoji-grid"
+            style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; padding: 6px; background: var(--bg-tertiary); border-radius: 8px; border: 1px solid var(--border-color);">
+            <!-- Emojis populated by JS -->
+          </div>
+        </div>
+        <!-- Color Selection Grid -->
+        <div class="settings-item" style="margin-bottom: 12px;">
+          <label style="margin-bottom: 4px; display: block;" data-i18n="select-color">Renk Seçin</label>
+          <div id="space-options-color-grid"
+            style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; padding: 6px; background: var(--bg-tertiary); border-radius: 8px; border: 1px solid var(--border-color);">
+            <!-- Colors populated by JS -->
+          </div>
+        </div>
+        <p id="space-delete-confirm-text" data-i18n="delete-space-confirm"
+          style="font-size: 11px; line-height: 1.4; color: var(--text-muted);"></p>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-confirm-space-delete" class="modal-btn"
+          style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); color: #fff; border:none; margin-right: auto;"
+          data-i18n="modal-delete">Sil</button>
+        <button id="btn-cancel-space-delete" class="modal-btn secondary-btn" data-i18n="modal-cancel">İptal</button>
+        <button id="btn-save-space-options" class="modal-btn primary-btn"
+          style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #fff; border:none;"
+          data-i18n="modal-save">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Site Security Info Modal (Chrome-like) -->
+  <div id="security-info-modal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 380px;">
+      <div class="modal-header">
+        <h3 id="security-info-modal-title" data-i18n="security-info-title">Site Bilgisi</h3>
+        <button id="close-security-info-modal" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 20px; display: flex; flex-direction: column; gap: 18px;">
+        <!-- Domain Header -->
+        <div id="security-info-domain"
+          style="font-size: 16px; font-weight: 600; color: var(--text-main); word-break: break-all; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+        </div>
+
+        <!-- Connection Status Area -->
+        <div class="connection-status-section"
+          style="display: flex; gap: 12px; align-items: flex-start; padding: 12px; background: rgba(255, 255, 255, 0.03); border-radius: 8px; border: 1px solid var(--border-color);">
+          <div id="security-info-conn-icon" style="margin-top: 2px; flex-shrink: 0;">
+            <!-- Icon will be inserted dynamically -->
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <div id="security-info-conn-title" style="font-weight: 600; font-size: 13px;"></div>
+            <div id="security-info-conn-desc" style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+            </div>
+          </div>
+        </div>
+
+        <!-- Permissions Area -->
+        <div id="security-info-permissions-section" style="display: flex; flex-direction: column; gap: 10px;">
+          <h4
+            style="font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin: 0;"
+            data-i18n="site-permissions">İzinler</h4>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="color: var(--text-muted);">
+                <path
+                  d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" />
+              </svg>
+              <span style="font-size: 13px;" data-i18n="permission-notifications">Bildirimler</span>
+            </div>
+            <select id="security-info-notifications-select"
+              style="background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-main); padding: 4px 8px; border-radius: 6px; font-size: 12px; outline: none; cursor: pointer;">
+              <option value="default" data-i18n="permission-default">Varsayılan (Sor)</option>
+              <option value="allow" data-i18n="permission-allow">İzin Ver</option>
+              <option value="block" data-i18n="permission-block">Engelle</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; gap: 8px; padding: 12px 20px;">
+        <button id="btn-manage-permissions-shortcut" class="modal-btn secondary-btn" style="flex: 1; font-size: 12px;"
+          data-i18n="permissions-manager">Site İzinlerini Yönet</button>
+        <button id="btn-close-security-info-modal" class="modal-btn primary-btn"
+          style="flex: 1; font-size: 12px; background: var(--accent-gradient); color: #000; border: none;"
+          data-i18n="modal-close">Kapat</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="renderer.js"></script>
+</body>
+
+</html>

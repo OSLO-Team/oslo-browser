@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yeni Sekme</title>
+  <link rel="stylesheet" href="newtab.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Dynamic Animated Background -->
+  <div class="bg-gradient-shapes">
+    <div class="shape shape-1"></div>
+    <div class="shape shape-2"></div>
+    <div class="shape shape-3"></div>
+  </div>
+
+  <!-- Glassmorphic Weather Card -->
+  <div id="weather-card" class="weather-card">
+    <div id="weather-info">
+      <div id="weather-city" class="weather-city">...</div>
+      <div class="weather-row">
+        <span id="weather-temp" class="weather-temp">--°C</span>
+        <span id="weather-desc" class="weather-desc">Hava durumu yükleniyor...</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Header: Greeting & Clock -->
+    <header class="header">
+      <img src="../../assets/logo.svg" alt="OSLO Logo" class="newtab-logo">
+      <div id="clock" class="clock">00:00</div>
+      <div id="date" class="date">26 Mayıs 2026</div>
+      <h1 id="greeting" class="greeting">Merhaba</h1>
+    </header>
+
+    <!-- Search Section -->
+    <div class="search-box">
+      <form id="search-form">
+        <div class="search-input-wrapper">
+          <svg class="search-icon" viewBox="0 0 24 24" width="20" height="20">
+            <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" fill="currentColor"/>
+          </svg>
+          <input type="text" id="search-input" placeholder="İnternette arama yapın veya URL girin..." autocomplete="off" spellcheck="false" autofocus>
+        </div>
+      </form>
+    </div>
+
+    <!-- Quick Links Section -->
+    <section class="shortcuts-section">
+      <div class="section-header">
+        <h2 class="section-title">Hızlı Bağlantılar</h2>
+        <button id="edit-shortcuts-btn" class="edit-mode-btn" title="Kısayolları Düzenle">Düzenle</button>
+      </div>
+      <div id="shortcuts-grid" class="shortcuts-grid">
+        <!-- Will be dynamically populated by newtab.js -->
+      </div>
+    </section>
+  </div>
+
+  <!-- Glassmorphic Shortcut Modal -->
+  <div id="shortcut-modal" class="modal-overlay">
+    <div class="modal-card">
+      <h3 id="modal-title">Kısayol Ekle</h3>
+      <div class="modal-body">
+        <div class="input-group">
+          <label for="modal-name-input">Ad</label>
+          <input type="text" id="modal-name-input" placeholder="Örn: Google" autocomplete="off">
+        </div>
+        <div class="input-group">
+          <label for="modal-url-input">URL Adresi</label>
+          <input type="text" id="modal-url-input" placeholder="Örn: https://www.google.com" autocomplete="off">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="modal-cancel-btn" class="modal-btn secondary">İptal</button>
+        <button id="modal-save-btn" class="modal-btn primary">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="newtab.js"></script>
+</body>
+</html>

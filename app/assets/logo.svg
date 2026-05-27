@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <!-- Main gradient for the O ring -->
+    <linearGradient id="mainGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00e5ff"/>
+      <stop offset="35%" stop-color="#00b8d4"/>
+      <stop offset="65%" stop-color="#0066ff"/>
+      <stop offset="100%" stop-color="#304ffe"/>
+    </linearGradient>
+    <!-- Inner highlight gradient -->
+    <linearGradient id="highlight" x1="0%" y1="0%" x2="80%" y2="80%">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.6)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </linearGradient>
+    <!-- Outer glow -->
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <!-- Soft shadow -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#00b8d4" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+  
+  <!-- Outer glow ring -->
+  <circle cx="100" cy="100" r="78" fill="none" stroke="url(#mainGrad)" stroke-width="3" opacity="0.25" filter="url(#glow)"/>
+  
+  <!-- Main O ring -->
+  <circle cx="100" cy="100" r="68" fill="none" stroke="url(#mainGrad)" stroke-width="22" stroke-linecap="round" filter="url(#shadow)"/>
+  
+  <!-- Glass highlight (top-left arc) -->
+  <path d="M 45 80 A 60 60 0 0 1 120 40" fill="none" stroke="url(#highlight)" stroke-width="14" stroke-linecap="round" opacity="0.6"/>
+  
+  <!-- Inner rim shimmer -->
+  <circle cx="100" cy="100" r="57" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
+  
+  <!-- Outer rim shimmer -->
+  <circle cx="100" cy="100" r="79" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  
+  <!-- Small specular highlight dot -->
+  <circle cx="72" cy="62" r="4" fill="white" opacity="0.5">
+    <animate attributeName="opacity" values="0.5;0.8;0.5" dur="3s" repeatCount="indefinite"/>
+  </circle>
+</svg>

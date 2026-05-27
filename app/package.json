@@ -1,0 +1,55 @@
+{
+  "name": "oslo-browser",
+  "version": "1.0.0",
+  "description": "OSLO Browser - Elegant Electron-based Custom Web Browser",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win"
+  },
+  "keywords": [
+    "browser",
+    "electron",
+    "oslo"
+  ],
+  "author": "OSLO Team",
+  "license": "ISC",
+  "build": {
+    "appId": "com.oslo.browser",
+    "productName": "OSLO Browser",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/logo.png",
+      "sign": null
+    },
+    "nsis": {
+      "artifactName": "OSLO-Browser-${version}-Setup.exe",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "OSLO Browser"
+    }
+  },
+  "devDependencies": {
+    "electron": "^30.0.6",
+    "electron-builder": "^25.1.8",
+    "sharp": "^0.34.5"
+  }
+}
