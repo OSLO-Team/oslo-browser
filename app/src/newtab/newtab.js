@@ -1,6 +1,10 @@
 // OSLO Browser - New Tab Script
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Detect Windows OS to apply workaround for backdrop-filter rendering bugs
+  if (navigator.userAgent.includes('Windows') || navigator.userAgent.includes('win32') || navigator.platform.toLowerCase().includes('win')) {
+    document.body.classList.add('os-windows');
+  }
   // --- Localization for New Tab ---
   const newtabTranslations = {
     tr: {

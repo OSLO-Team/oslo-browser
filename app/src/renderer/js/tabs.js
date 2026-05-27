@@ -44,7 +44,7 @@ export function renderTabs() {
 
 function createTabElement(tab, isPinned) {
   const tabEl = document.createElement('div');
-  tabEl.className = `tab-item ${isPinned ? 'pinned' : ''} ${tab.id === state.activeTabId ? 'active' : ''} ${tab.isIncognito ? 'incognito' : ''} ${tab.isSleeping ? 'sleeping' : ''} ${tab.isPlayingAudio ? 'playing-audio' : ''}`;
+  tabEl.className = `tab-item ${isPinned ? 'pinned' : ''} ${tab.id === state.activeTabId ? 'active' : ''} ${tab.isIncognito ? 'incognito' : ''} ${tab.isSleeping ? 'sleeping' : ''} ${tab.isPlayingAudio ? 'playing-audio' : ''} ${tab.isMuted ? 'muted' : ''}`;
   let tooltipTitle = tab.title;
   if (!tooltipTitle || tooltipTitle === 'Yeni Sekme' || tooltipTitle === 'New Tab' || tooltipTitle === 'Nouvel Onglet') {
     tooltipTitle = tab.isSleeping ? (translations[state.currentLang]['new-tab-sleeping'] || 'Yeni Sekme (Uykuda)') : (translations[state.currentLang]['new-tab'] || 'Yeni Sekme');

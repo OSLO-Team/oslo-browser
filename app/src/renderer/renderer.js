@@ -5,6 +5,11 @@ import { renderTabs, updateBookmarkIcon } from './js/tabs.js';
 import { initPanels, renderBookmarks, renderBookmarksBar, renderHistory, renderDownloads } from './js/panels.js';
 import { initSettings } from './js/settings.js';
 
+// Detect Windows OS to apply workaround for backdrop-filter rendering bugs
+if (navigator.userAgent.includes('Windows') || navigator.userAgent.includes('win32') || navigator.platform.toLowerCase().includes('win')) {
+  document.body.classList.add('os-windows');
+}
+
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;',

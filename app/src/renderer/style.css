@@ -1801,8 +1801,6 @@ body.light-mode .space-btn.active {
   right: 0;
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   display: none;
   align-items: center;
   justify-content: center;
@@ -1818,6 +1816,8 @@ body.light-mode .space-btn.active {
 
 .modal-card {
   background: var(--bg-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border-color);
   border-radius: 16px;
   width: 400px;
@@ -2712,6 +2712,27 @@ body.topbar-auto-hide .bookmarks-bar {
 }
 
 #sidebar.collapsed .tab-audio-btn {
+  display: none;
+}
+
+#sidebar.collapsed .tab-item.playing-audio:not(:hover) .tab-audio-btn,
+#sidebar.collapsed .tab-item.muted:not(:hover) .tab-audio-btn {
+  display: flex;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin-left: 0;
+  z-index: 5;
+  font-size: 12px;
+}
+
+#sidebar.collapsed .tab-item.playing-audio:not(:hover) .tab-favicon,
+#sidebar.collapsed .tab-item.muted:not(:hover) .tab-favicon {
+  display: none;
+}
+
+#sidebar.collapsed .tab-item:hover .tab-audio-btn {
   display: none;
 }
 
@@ -4094,3 +4115,40 @@ body.topbar-auto-hide .bookmarks-bar {
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(0, 221, 255, 0.45) !important;
 }
+
+/* --- Windows Backdrop-Filter and Theme Fixes --- */
+body.os-windows {
+  --bg-glass: rgba(20, 22, 25, 0.92);
+}
+
+body.os-windows.light-mode {
+  --bg-glass: rgba(255, 255, 255, 0.95);
+}
+
+body.os-windows .modal-overlay,
+body.os-windows .modal-card,
+body.os-windows .context-menu,
+body.os-windows .bookmarks-bar-dropdown,
+body.os-windows .autocomplete-dropdown,
+body.os-windows .toast-message,
+body.os-windows .update-modal-card {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.transparency-disabled .modal-overlay,
+body.transparency-disabled .modal-card,
+body.transparency-disabled .context-menu,
+body.transparency-disabled .bookmarks-bar-dropdown,
+body.transparency-disabled .autocomplete-dropdown,
+body.transparency-disabled .toast-message,
+body.transparency-disabled .update-modal-card {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Light mode background for content area behind hidden webview during modal display */
+body.light-mode #content-area {
+  background-color: var(--bg-primary) !important;
+}
+

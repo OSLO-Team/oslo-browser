@@ -722,3 +722,22 @@ body.light-mode .modal-btn.secondary {
 body.light-mode .modal-btn.secondary:hover {
   background-color: #f3f4f6;
 }
+
+/* --- Windows Backdrop-Filter Workarounds --- */
+body.os-windows {
+  --glass-bg: rgba(22, 24, 28, 0.9);
+}
+
+body.os-windows.light-mode {
+  --glass-bg: rgba(255, 255, 255, 0.95);
+}
+
+body.os-windows .search-input-wrapper,
+body.os-windows .shortcut-card,
+body.os-windows .weather-card,
+body.os-windows .edit-mode-btn,
+body.os-windows .modal-overlay,
+body.os-windows .modal-card {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
