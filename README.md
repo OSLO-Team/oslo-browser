@@ -35,5 +35,6 @@ npm start
 
 ## License
 
-Copyright © 2026 Emir Can Turan (OSLO Team).  
-All Rights Reserved.
+This repository and its contents are proprietary.
+
+See the `LICENSE` file for licensing information.
