@@ -1690,7 +1690,7 @@ document.getElementById('btn-check-updates')?.addEventListener('click', () => {
       const modalVersion = document.getElementById('update-modal-version');
       const modalNotes = document.getElementById('update-modal-notes');
       
-      if (currentVersion) currentVersion.textContent = `v${info.currentVersion || '1.0.0-alpha.0'}`;
+      if (currentVersion) currentVersion.textContent = `v${info.currentVersion || '1.0.0-alpha.1'}`;
       if (modalVersion) modalVersion.textContent = `v${info.latestVersion}`;
       if (modalNotes) modalNotes.innerHTML = parseMarkdown(info.releaseNotes);
 
@@ -1730,7 +1730,7 @@ document.getElementById('btn-cancel-update')?.addEventListener('click', closeUpd
 document.getElementById('btn-confirm-update')?.addEventListener('click', () => {
   const url = updateModal?.dataset.downloadUrl;
   const sha256 = updateModal?.dataset.sha256 || '';
-  const version = document.getElementById('update-modal-version')?.textContent || '1.0.0-alpha.0';
+  const version = document.getElementById('update-modal-version')?.textContent || '1.0.0-alpha.1';
   
   if (!url) {
     window.oslo.openExternalLink('https://oslobrowser.com/download');
@@ -1816,7 +1816,7 @@ function autoCheckForUpdates() {
       const modalVersion = document.getElementById('update-modal-version');
       const modalNotes = document.getElementById('update-modal-notes');
       
-      if (currentVersion) currentVersion.textContent = `v${info.currentVersion || '1.0.0-alpha.0'}`;
+      if (currentVersion) currentVersion.textContent = `v${info.currentVersion || '1.0.0-alpha.1'}`;
       if (modalVersion) modalVersion.textContent = `v${info.latestVersion}`;
       if (modalNotes) modalNotes.innerHTML = parseMarkdown(info.releaseNotes);
 
