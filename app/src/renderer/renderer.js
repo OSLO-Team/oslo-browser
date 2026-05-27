@@ -5,6 +5,16 @@ import { renderTabs, updateBookmarkIcon } from './js/tabs.js';
 import { initPanels, renderBookmarks, renderBookmarksBar, renderHistory, renderDownloads } from './js/panels.js';
 import { initSettings } from './js/settings.js';
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
+}
+
 // DOM Elements for Navigation & Panel Toggles
 const sidebar = document.getElementById('sidebar');
 const sidebarToggle = document.getElementById('sidebar-toggle');
@@ -43,7 +53,6 @@ export function sendBounds() {
   const isBookmarkEditOpen = bookmarkEditModal?.classList.contains('open');
   const isFolderCreateOpen = document.getElementById('folder-create-modal')?.classList.contains('open');
   const isUpdateOpen = document.getElementById('update-modal')?.classList.contains('open');
-  const isInstallingOpen = document.getElementById('installing-overlay')?.classList.contains('open');
   const isTelemetryOpen = document.getElementById('telemetry-log-modal')?.classList.contains('open');
   const isPermissionsOpen = document.getElementById('permissions-manager-modal')?.classList.contains('open');
   const isPasswordAuditOpen = document.getElementById('password-audit-modal')?.classList.contains('open');
@@ -70,7 +79,6 @@ export function sendBounds() {
     isBookmarkEditOpen || 
     isFolderCreateOpen || 
     isUpdateOpen ||
-    isInstallingOpen ||
     isTelemetryOpen ||
     isPermissionsOpen ||
     isPasswordAuditOpen ||
@@ -177,9 +185,7 @@ if (addressInput) {
       e.preventDefault();
       if (isOpen && selectedSuggestionIndex >= 0 && selectedSuggestionIndex < currentSuggestions.length) {
         const suggestion = currentSuggestions[selectedSuggestionIndex];
-        if (state.activeTabId) {
-          window.oslo.navigate(state.activeTabId, suggestion.url);
-        }
+        activateSuggestion(suggestion);
       } else {
         const val = addressInput.value.trim();
         if (val && state.activeTabId) {
@@ -724,6 +730,81 @@ function updateSecurityIndicator() {
 let selectedSuggestionIndex = -1;
 let currentSuggestions = [];
 
+function getSmartCommands() {
+  const t = translations[state.currentLang] || {};
+  return [
+    {
+      id: 'settings',
+      title: t['cmd-open-settings'] || 'Ayarları aç',
+      url: t['cmd-open-settings-desc'] || 'OSLO ayarları',
+      keywords: ['ayar', 'settings', 'preferences', 'options'],
+      run: () => settingsBtn?.click()
+    },
+    {
+      id: 'history',
+      title: t['cmd-open-history'] || 'Geçmişi aç',
+      url: t['cmd-open-history-desc'] || 'Tarama geçmişi',
+      keywords: ['geçmiş', 'gecmis', 'history'],
+      run: () => historyBtn?.click()
+    },
+    {
+      id: 'bookmarks',
+      title: t['cmd-open-bookmarks'] || 'Yer imlerini aç',
+      url: t['cmd-open-bookmarks-desc'] || 'Kayıtlı yer imleri',
+      keywords: ['yer imi', 'bookmark', 'bookmarks', 'favori'],
+      run: () => bookmarksBtn?.click()
+    },
+    {
+      id: 'downloads',
+      title: t['cmd-open-downloads'] || 'İndirmeleri aç',
+      url: t['cmd-open-downloads-desc'] || 'İndirme listesi',
+      keywords: ['indir', 'indirme', 'download', 'downloads'],
+      run: () => downloadsBtn?.click()
+    },
+    {
+      id: 'new-tab',
+      title: t['cmd-new-tab'] || 'Yeni sekme aç',
+      url: 'Ctrl+T',
+      keywords: ['yeni sekme', 'new tab', 'tab'],
+      run: () => window.oslo.createTab({ space: state.activeSpace })
+    },
+    {
+      id: 'incognito',
+      title: t['cmd-new-incognito'] || 'Gizli sekme aç',
+      url: 'Ctrl+Shift+P',
+      keywords: ['gizli', 'incognito', 'private'],
+      run: () => window.oslo.createTab({ isIncognito: true, space: state.activeSpace })
+    }
+  ];
+}
+
+function commandIcon() {
+  return `
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+      <path d="M4 17h4v-2H4v2zm0-4h10v-2H4v2zm0-6v2h16V7H4zm13 10 5-5-5-5v3h-5v4h5v3z"/>
+    </svg>
+  `;
+}
+
+function tabIcon() {
+  return `
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+      <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/>
+    </svg>
+  `;
+}
+
+function activateSuggestion(suggestion) {
+  if (!suggestion) return;
+  if (suggestion.type === 'tab' && suggestion.tabId) {
+    window.oslo.selectTab(suggestion.tabId);
+  } else if (suggestion.type === 'command' && typeof suggestion.run === 'function') {
+    suggestion.run();
+  } else if (state.activeTabId && suggestion.url) {
+    window.oslo.navigate(state.activeTabId, suggestion.url);
+  }
+}
+
 function showAutocompleteSuggestions(text) {
   const dropdown = document.getElementById('autocomplete-dropdown');
   if (!dropdown) return;
@@ -743,6 +824,40 @@ function showAutocompleteSuggestions(text) {
     const searchEngineName = engineNames[searchEngine] || 'Google';
 
     const suggestions = [];
+    const commandMatches = getSmartCommands().filter(command => {
+      return command.title.toLowerCase().includes(cleanText) ||
+        command.url.toLowerCase().includes(cleanText) ||
+        command.keywords.some(keyword => keyword.toLowerCase().includes(cleanText));
+    }).slice(0, 4);
+
+    commandMatches.forEach(command => {
+      suggestions.push({
+        type: 'command',
+        title: command.title,
+        url: command.url,
+        icon: commandIcon(),
+        run: command.run
+      });
+    });
+
+    const matchedTabs = state.tabOrder
+      .map(id => state.tabs[id])
+      .filter(tab => tab && !tab.isSleeping && (
+        (tab.title || '').toLowerCase().includes(cleanText) ||
+        (tab.url || '').toLowerCase().includes(cleanText) ||
+        (tab.space || '').toLowerCase().includes(cleanText)
+      ))
+      .slice(0, 5);
+
+    matchedTabs.forEach(tab => {
+      suggestions.push({
+        type: 'tab',
+        tabId: tab.id,
+        title: `${tab.title || tab.url} · ${tab.space || 'Genel'}`,
+        url: tab.url || (translations[state.currentLang]['new-tab'] || 'Yeni Sekme'),
+        icon: tabIcon()
+      });
+    });
 
     // 1. Search Engine Suggestion
     const suffix = translations[state.currentLang]['search-suggestion'] || 'ile ara';
@@ -824,16 +939,14 @@ function renderAutocompleteDropdown() {
     item.innerHTML = `
       <div class="autocomplete-item-icon">${s.icon}</div>
       <div class="autocomplete-item-info">
-        <div class="autocomplete-item-title">${s.title}</div>
-        <div class="autocomplete-item-url">${s.url}</div>
+        <div class="autocomplete-item-title">${escapeHtml(s.title)}</div>
+        <div class="autocomplete-item-url">${escapeHtml(s.url)}</div>
       </div>
     `;
 
     item.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (state.activeTabId) {
-        window.oslo.navigate(state.activeTabId, s.url);
-      }
+      activateSuggestion(s);
       dropdown.style.display = 'none';
       currentSuggestions = [];
       selectedSuggestionIndex = -1;
@@ -1042,7 +1155,7 @@ export function renderSpaces() {
     if (isCollapsed) {
       pill.textContent = spaceEmoji;
     } else {
-      pill.innerHTML = `<span style="margin-right: 6px;">${spaceEmoji}</span><span>${displayName}</span>`;
+      pill.innerHTML = `<span style="margin-right: 6px;">${escapeHtml(spaceEmoji)}</span><span>${escapeHtml(displayName)}</span>`;
     }
     
     pill.addEventListener('click', () => {
@@ -1509,6 +1622,7 @@ window.addEventListener('unhandledrejection', (event) => {
 // --- Update Modal & Check updates logic ---
 const updateModal = document.getElementById('update-modal');
 const telemetryLogModal = document.getElementById('telemetry-log-modal');
+const getUpdateText = (key, fallback) => translations[state.currentLang]?.[key] || fallback;
 
 document.getElementById('btn-check-updates')?.addEventListener('click', () => {
   const statusMsg = document.getElementById('update-status-message');
@@ -1533,6 +1647,7 @@ document.getElementById('btn-check-updates')?.addEventListener('click', () => {
 
       // Store download URL in a data attribute
       updateModal.dataset.downloadUrl = info.downloadUrl;
+      updateModal.dataset.sha256 = info.sha256 || info.expectedSha256 || '';
     } else {
       if (statusMsg) {
         statusMsg.textContent = state.currentLang === 'tr' ? 'Tarayıcınız güncel.' : 
@@ -1562,10 +1677,25 @@ document.getElementById('btn-cancel-update')?.addEventListener('click', closeUpd
 
 document.getElementById('btn-confirm-update')?.addEventListener('click', () => {
   const url = updateModal?.dataset.downloadUrl;
-  const version = document.getElementById('update-modal-version')?.textContent || '1.1.1';
+  const sha256 = updateModal?.dataset.sha256 || '';
+  const version = document.getElementById('update-modal-version')?.textContent || '1.2.1';
   
   if (!url) {
     window.oslo.openExternalLink('https://oslobrowser.com/download');
+    closeUpdateModalFunc();
+    return;
+  }
+
+  if (!sha256) {
+    const statusMsg = document.getElementById('update-status-message');
+    if (statusMsg) {
+      statusMsg.textContent = state.currentLang === 'tr'
+        ? 'Güncelleme doğrulama bilgisi eksik. Otomatik kurulum durduruldu.'
+        : (state.currentLang === 'fr'
+          ? 'Les informations de vérification sont manquantes. Installation automatique arrêtée.'
+          : 'Update verification data is missing. Automatic installation stopped.');
+      statusMsg.style.display = 'block';
+    }
     closeUpdateModalFunc();
     return;
   }
@@ -1581,13 +1711,14 @@ document.getElementById('btn-confirm-update')?.addEventListener('click', () => {
   const progressBar = document.getElementById('update-progress-bar');
   const progressPercent = document.getElementById('update-progress-percent');
   const progressStatus = document.getElementById('update-progress-status');
+  const installWarning = document.getElementById('update-install-warning');
   
   if (progressBar) progressBar.style.width = '0%';
   if (progressPercent) progressPercent.textContent = '0%';
   if (progressStatus) {
-    progressStatus.textContent = state.currentLang === 'tr' ? 'Güncelleme indiriliyor...' : 
-                                 (state.currentLang === 'fr' ? 'Téléchargement de la mise à jour...' : 'Downloading update...');
+    progressStatus.textContent = getUpdateText('update-downloading', 'Güncelleme indiriliyor...');
   }
+  if (installWarning) installWarning.style.display = 'block';
   if (progressContainer) progressContainer.style.display = 'flex';
   
   // Listen to progress
@@ -1597,29 +1728,13 @@ document.getElementById('btn-confirm-update')?.addEventListener('click', () => {
   });
   
   // Start download
-  window.oslo.downloadUpdate(url, version).then(() => {
+  window.oslo.downloadUpdate(url, version, sha256).then(() => {
     removeListener();
-    
-    // Close the update modal
-    closeUpdateModalFunc();
-    
-    // Set up and show the full-screen installing overlay
-    const installingOverlay = document.getElementById('installing-overlay');
-    const installingTitle = document.getElementById('installing-title');
-    const installingDesc = document.getElementById('installing-desc');
-    
-    if (installingTitle) {
-      installingTitle.textContent = state.currentLang === 'tr' ? 'Güncelleme kuruluyor...' :
-                                   (state.currentLang === 'fr' ? 'Installation de la mise à jour...' : 'Installing update...');
-    }
-    if (installingDesc) {
-      installingDesc.textContent = state.currentLang === 'tr' ? 'Lütfen bekleyin, OSLO Browser güncelleniyor. Uygulama kurulum tamamlandıktan sonra otomatik olarak yeniden başlayacaktır.' :
-                                   (state.currentLang === 'fr' ? 'Veuillez patienter, OSLO Browser est en cours de mise à jour. L\'application redémarrera automatiquement une fois l\'installation terminée.' : 'Please wait, OSLO Browser is updating. The application will restart automatically after the installation completes.');
-    }
-    
-    if (installingOverlay) {
-      installingOverlay.classList.add('open');
-      sendBounds(); // Hide native webview bounds because installing overlay is visible!
+
+    if (progressBar) progressBar.style.width = '100%';
+    if (progressPercent) progressPercent.textContent = '100%';
+    if (progressStatus) {
+      progressStatus.textContent = getUpdateText('update-starting-install', 'Kurulum başlatılıyor...');
     }
   }).catch(err => {
     console.error('Download failed:', err);
@@ -1636,6 +1751,7 @@ document.getElementById('btn-confirm-update')?.addEventListener('click', () => {
       if (footer) footer.style.display = 'flex';
       if (closeBtn) closeBtn.style.display = 'block';
       if (progressContainer) progressContainer.style.display = 'none';
+      if (installWarning) installWarning.style.display = 'none';
     }, 3000);
   });
 });
@@ -1656,6 +1772,7 @@ function autoCheckForUpdates() {
       // Store download URL in a data attribute
       if (updateModal) {
         updateModal.dataset.downloadUrl = info.downloadUrl;
+        updateModal.dataset.sha256 = info.sha256 || info.expectedSha256 || '';
       }
     }
   }).catch(err => {
@@ -1703,15 +1820,15 @@ function renderTelemetryLogs() {
             <div class="telemetry-item-header">
               <div class="telemetry-icon-wrapper">${svgContent}</div>
               <div class="telemetry-info">
-                <span class="telemetry-action">${ev.action}</span>
-                <span class="telemetry-timestamp">${formatTime(ev.timestamp)}</span>
+                <span class="telemetry-action">${escapeHtml(ev.action)}</span>
+                <span class="telemetry-timestamp">${escapeHtml(formatTime(ev.timestamp))}</span>
               </div>
               <div class="telemetry-chevron">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
               </div>
             </div>
             <div class="telemetry-details">
-              <pre class="telemetry-details-content">${JSON.stringify(ev.data, null, 2)}</pre>
+              <pre class="telemetry-details-content">${escapeHtml(JSON.stringify(ev.data, null, 2))}</pre>
             </div>
           `;
 
@@ -1750,16 +1867,16 @@ function renderTelemetryLogs() {
             <div class="telemetry-item-header">
               <div class="telemetry-icon-wrapper">${warningSvg}</div>
               <div class="telemetry-info">
-                <span class="telemetry-action">${cr.message}</span>
-                <span class="telemetry-timestamp">${formatTime(cr.timestamp)}</span>
+                <span class="telemetry-action">${escapeHtml(cr.message)}</span>
+                <span class="telemetry-timestamp">${escapeHtml(formatTime(cr.timestamp))}</span>
               </div>
-              <span class="telemetry-badge">${cr.process.toUpperCase()} PROC</span>
+              <span class="telemetry-badge">${escapeHtml(String(cr.process || '').toUpperCase())} PROC</span>
               <div class="telemetry-chevron">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
               </div>
             </div>
             <div class="telemetry-details">
-              <pre class="telemetry-details-content">${cr.stack || 'No stack trace available.'}</pre>
+              <pre class="telemetry-details-content">${escapeHtml(cr.stack || 'No stack trace available.')}</pre>
             </div>
           `;
 

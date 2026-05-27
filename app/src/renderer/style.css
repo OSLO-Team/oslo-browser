@@ -3565,6 +3565,36 @@ body.topbar-auto-hide .bookmarks-bar {
   padding: 4px 0;
 }
 
+.password-generator-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.password-generator-output {
+  min-width: 0;
+  height: 36px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  color: var(--text-main);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 13px;
+  padding: 0 12px;
+  outline: none;
+}
+
+.password-generator-output:focus {
+  border-color: var(--accent-color);
+}
+
+@media (max-width: 720px) {
+  .password-generator-box {
+    grid-template-columns: 1fr;
+  }
+}
+
 .password-row {
   display: flex;
   align-items: center;
@@ -3812,6 +3842,16 @@ body.topbar-auto-hide .bookmarks-bar {
   border-color: rgba(239, 68, 68, 0.3);
 }
 
+.update-install-warning {
+  padding: 10px 12px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.1);
+  color: #fbbf24;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 /* Password Audit Modal Elements */
 @keyframes spin {
   from { transform: rotate(0deg); }
@@ -3823,13 +3863,3 @@ body.topbar-auto-hide .bookmarks-bar {
   70% { transform: scale(1.05); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
   100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
 }
-
-.installing-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid rgba(255, 255, 255, 0.1);
-  border-left-color: var(--accent-color, #00ddff);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-

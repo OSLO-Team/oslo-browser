@@ -771,18 +771,112 @@ if (adBlockEnabled && (window.location.protocol === 'http:' || window.location.p
 }
 
 // ─── CONTEXT BRIDGE EXPOSURE ───────────────────────────────────────────────────
-contextBridge.exposeInMainWorld('oslo', {
+function getLocalPageKind() {
+  try {
+    if (window.location.protocol !== 'file:') return 'web';
+    const pathname = decodeURIComponent(window.location.pathname).replace(/\\/g, '/').toLowerCase();
+    if (pathname.endsWith('/renderer/index.html')) return 'app';
+    if (pathname.endsWith('/newtab/newtab.html')) return 'newtab';
+  } catch (error) { }
+  return 'web';
+}
+
+const pageKind = getLocalPageKind();
+
+const allowedSettings = new Set([
+  'searchEngine', 'adblockEnabled', 'blockedCount', 'httpsOnlyEnabled', 'httpsOnlyExceptions',
+  'customCss', 'customCssEnabled', 'theme', 'accentColor', 'compactMode', 'tabCornerStyle',
+  'activeTabStyle', 'tabHeight', 'sidebarAutoHide', 'sidebarIconOnly', 'sidebarWidth',
+  'topBarAutoHide', 'uiFontSize', 'defaultPageZoom', 'reduceMotion', 'transparencyEnabled',
+  'language', 'newtabBackgroundType', 'newtabWallpaper', 'newtabBackgroundColor',
+  'newtabPresetWallpaper', 'newtabShowClock', 'newtabShowDate', 'newtabShowWeather',
+  'newtabShowSearch', 'newtabShowShortcuts', 'homeButtonEnabled', 'homePageUrl',
+  'bookmarksBarEnabled', 'historyLimit', 'telemetryEnabled', 'dnsOverHttpsEnabled',
+  'dnsOverHttpsProvider', 'dnsOverHttpsCustomProvider', 'cookiePolicy', 'clearCookiesOnExit',
+  'trackingProtectionLevel', 'fingerprintProtection', 'refererPolicy', 'webRtcIpProtection',
+  'dangerousDownloadsProtection', 'passwordSecurityWarnings', 'clearHistoryOnExit',
+  'clearCacheOnExit', 'clearDownloadsOnExit', 'clearLocalStorageOnExit',
+  'incognitoForgetDownloads', 'incognitoBlockThirdPartyCookies', 'permissionNotifications',
+  'permissionCamera', 'permissionMicrophone', 'permissionLocation', 'permissionClipboard',
+  'permissionAutoplay', 'globalPrivacyControl', 'sessionRestoreEnabled', 'savePasswordsEnabled',
+  'autofillEnabled', 'sleepTabsEnabled', 'sleepTabsTimeout', 'downloadPromptEnabled'
+]);
+
+function asString(value, maxLength = 4096) {
+  return typeof value === 'string' && value.length <= maxLength ? value : null;
+}
+
+function asTabId(value) {
+  return asString(value, 128);
+}
+
+function isWebUrl(value) {
+  const input = asString(value, 4096);
+  if (!input) return false;
+  try {
+    const parsed = new URL(input);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch (error) {
+    return false;
+  }
+}
+
+function isExternalUrl(value) {
+  const input = asString(value, 4096);
+  if (!input) return false;
+  try {
+    const parsed = new URL(input);
+    return ['https:', 'http:', 'mailto:'].includes(parsed.protocol);
+  } catch (error) {
+    return false;
+  }
+}
+
+function isVersion(value) {
+  return typeof value === 'string' && /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(value);
+}
+
+function isSha256(value) {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value);
+}
+
+function safeSend(channel, validator, payload) {
+  if (!validator || validator(payload)) {
+    ipcRenderer.send(channel, payload);
+  }
+}
+
+function safeInvoke(channel, validator, payload, fallback = Promise.resolve(null)) {
+  if (!validator || validator(payload)) {
+    return ipcRenderer.invoke(channel, payload);
+  }
+  return fallback;
+}
+
+const osloApi = {
   // Tabs control
-  createTab: (data) => ipcRenderer.send('tab-create', data),
-  closeTab: (tabId) => ipcRenderer.send('tab-close', tabId),
-  selectTab: (tabId) => ipcRenderer.send('tab-select', tabId),
-  navigate: (tabId, url) => ipcRenderer.send('tab-navigate', { tabId, url }),
-  goBack: (tabId) => ipcRenderer.send('tab-back', tabId),
-  goForward: (tabId) => ipcRenderer.send('tab-forward', tabId),
-  reload: (tabId) => ipcRenderer.send('tab-reload', tabId),
-  updateTabSpace: (tabId, space) => ipcRenderer.send('tab-update-space', { tabId, space }),
-  reorderTabs: (tabIds) => ipcRenderer.send('tabs-reorder', tabIds),
-  muteTab: (tabId, mute) => ipcRenderer.send('tab-mute', { tabId, mute }),
+  createTab: (data = {}) => safeSend('tab-create', (value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    if (value.url !== undefined && asString(value.url, 4096) === null) return false;
+    if (value.space !== undefined && asString(value.space, 80) === null) return false;
+    if (value.isIncognito !== undefined && typeof value.isIncognito !== 'boolean') return false;
+    return true;
+  }, data),
+  closeTab: (tabId) => safeSend('tab-close', asTabId, tabId),
+  selectTab: (tabId) => safeSend('tab-select', asTabId, tabId),
+  navigate: (tabId, url) => {
+    if (asTabId(tabId) && asString(url, 4096)) ipcRenderer.send('tab-navigate', { tabId, url });
+  },
+  goBack: (tabId) => safeSend('tab-back', asTabId, tabId),
+  goForward: (tabId) => safeSend('tab-forward', asTabId, tabId),
+  reload: (tabId) => safeSend('tab-reload', asTabId, tabId),
+  updateTabSpace: (tabId, space) => {
+    if (asTabId(tabId) && asString(space, 80)) ipcRenderer.send('tab-update-space', { tabId, space });
+  },
+  reorderTabs: (tabIds) => safeSend('tabs-reorder', (value) => Array.isArray(value) && value.every(asTabId), tabIds),
+  muteTab: (tabId, mute) => {
+    if (asTabId(tabId) && typeof mute === 'boolean') ipcRenderer.send('tab-mute', { tabId, mute });
+  },
 
   // Storage & Features
   getBookmarks: () => ipcRenderer.invoke('bookmarks-get'),
@@ -794,11 +888,11 @@ contextBridge.exposeInMainWorld('oslo', {
   importBookmarks: () => ipcRenderer.invoke('bookmarks-import'),
   getHistory: () => ipcRenderer.invoke('history-get'),
   clearHistory: (range) => ipcRenderer.invoke('history-clear', range),
-  sleepTab: (tabId) => ipcRenderer.send('tab-sleep', tabId),
+  sleepTab: (tabId) => safeSend('tab-sleep', asTabId, tabId),
 
   // Unified Settings API
   getAllSettings: () => ipcRenderer.invoke('settings-get-all'),
-  setSetting: (key, value) => ipcRenderer.invoke('settings-set', { key, value }),
+  setSetting: (key, value) => safeInvoke('settings-set', (payload) => allowedSettings.has(payload.key), { key, value }),
   selectNewtabWallpaperFile: () => ipcRenderer.invoke('newtab-wallpaper-select-file'),
   exportSettings: () => ipcRenderer.invoke('settings-export'),
   importSettings: () => ipcRenderer.invoke('settings-import'),
@@ -813,7 +907,7 @@ contextBridge.exposeInMainWorld('oslo', {
   broadcastSetting: (type, value) => {
     const keyMap = { 'wallpaper': 'newtabWallpaper', 'newtab-wallpaper': 'newtabWallpaper' };
     const key = keyMap[type] || type;
-    return ipcRenderer.invoke('settings-set', { key, value });
+    return safeInvoke('settings-set', (payload) => allowedSettings.has(payload.key), { key, value });
   },
   onSettingBroadcast: (callback) => {
     const listener = (event, data) => {
@@ -836,21 +930,30 @@ contextBridge.exposeInMainWorld('oslo', {
   setCustomCss: (css) => ipcRenderer.invoke('custom-css-set', css),
 
   // Download controls
-  pauseDownload: (id) => ipcRenderer.send('download-pause', id),
-  resumeDownload: (id) => ipcRenderer.send('download-resume', id),
-  cancelDownload: (id) => ipcRenderer.send('download-cancel', id),
+  pauseDownload: (id) => safeSend('download-pause', (value) => Number.isFinite(Number(value)), id),
+  resumeDownload: (id) => safeSend('download-resume', (value) => Number.isFinite(Number(value)), id),
+  cancelDownload: (id) => safeSend('download-cancel', (value) => Number.isFinite(Number(value)), id),
   getDownloads: () => ipcRenderer.invoke('downloads-get'),
   clearDownloads: () => ipcRenderer.invoke('downloads-clear'),
 
   // Spaces control
   getSpaces: () => ipcRenderer.invoke('spaces-get'),
-  addSpace: (name) => ipcRenderer.invoke('spaces-add', name),
-  deleteSpace: (name) => ipcRenderer.invoke('spaces-delete', name),
-  updateSpace: (oldName, space) => ipcRenderer.invoke('spaces-update', { oldName, space }),
+  addSpace: (name) => safeInvoke('spaces-add', (value) => typeof value === 'string' ? !!asString(value, 80) : !!(value && typeof value === 'object' && asString(value.name, 80)), name),
+  deleteSpace: (name) => safeInvoke('spaces-delete', (value) => !!asString(value, 80), name),
+  updateSpace: (oldName, space) => {
+    if (asString(oldName, 80) && space && typeof space === 'object' && asString(space.name, 80)) {
+      return ipcRenderer.invoke('spaces-update', { oldName, space });
+    }
+    return Promise.resolve(null);
+  },
 
   // Find in page
-  findInPage: (text, options) => ipcRenderer.send('find-in-page', { text, options }),
-  stopFindInPage: (action) => ipcRenderer.send('stop-find-in-page', { action }),
+  findInPage: (text, options) => {
+    if (asString(text, 512)) ipcRenderer.send('find-in-page', { text, options: options && typeof options === 'object' ? options : {} });
+  },
+  stopFindInPage: (action) => {
+    if (['clearSelection', 'keepSelection', 'activateSelection'].includes(action)) ipcRenderer.send('stop-find-in-page', { action });
+  },
   onFindResult: (callback) => {
     const listener = (event, data) => callback(data);
     ipcRenderer.on('find-result', listener);
@@ -862,10 +965,22 @@ contextBridge.exposeInMainWorld('oslo', {
   maximizeWindow: () => ipcRenderer.send('window-maximize'),
   closeWindow: () => ipcRenderer.send('window-close'),
   newWindow: () => ipcRenderer.send('window-new'),
-  updateBounds: (bounds) => ipcRenderer.send('tab-bounds', bounds),
-  showBookmarksFolderMenu: (folderId, x, y) => ipcRenderer.send('show-bookmarks-folder-menu', { folderId, x, y }),
-  openDownloadedFile: (filePath) => ipcRenderer.send('download-open', filePath),
-  openExternalLink: (url) => ipcRenderer.send('open-external', url),
+  updateBounds: (bounds) => {
+    if (bounds && ['x', 'y', 'width', 'height'].every(key => Number.isFinite(Number(bounds[key])))) {
+      ipcRenderer.send('tab-bounds', bounds);
+    }
+  },
+  showBookmarksFolderMenu: (folderId, x, y) => {
+    if ((folderId === null || asString(folderId, 128)) && Number.isFinite(Number(x)) && Number.isFinite(Number(y))) {
+      ipcRenderer.send('show-bookmarks-folder-menu', { folderId, x, y });
+    }
+  },
+  openDownloadedFile: (filePath) => {
+    if (asString(filePath, 4096) && !/^[a-z][a-z0-9+.-]*:/i.test(filePath)) ipcRenderer.send('download-open', filePath);
+  },
+  openExternalLink: (url) => {
+    if (isExternalUrl(url)) ipcRenderer.send('open-external', url);
+  },
 
   // Events from Main Process
   onTabCreated: (callback) => {
@@ -910,30 +1025,42 @@ contextBridge.exposeInMainWorld('oslo', {
   },
 
   // Permission APIs
-  respondToPermission: (id, decision) => ipcRenderer.send('permission-response', { id, decision }),
+  respondToPermission: (id, decision) => {
+    if (Number.isFinite(Number(id)) && typeof decision === 'boolean') ipcRenderer.send('permission-response', { id, decision });
+  },
   onPermissionRequest: (callback) => {
     const listener = (event, data) => callback(data);
     ipcRenderer.on('ui-permission-request', listener);
     return () => ipcRenderer.removeListener('ui-permission-request', listener);
   },
   getPermissions: () => ipcRenderer.invoke('permissions-get-all'),
-  deletePermission: (key) => ipcRenderer.invoke('permissions-delete', key),
-  setPermission: (key, value) => ipcRenderer.invoke('permissions-set', key, value),
+  deletePermission: (key) => safeInvoke('permissions-delete', (value) => !!asString(value, 512), key),
+  setPermission: (key, value) => {
+    if (asString(key, 512) && typeof value === 'boolean') return ipcRenderer.invoke('permissions-set', key, value);
+    return Promise.resolve(null);
+  },
   getSiteData: () => ipcRenderer.invoke('site-data-get'),
-  clearSiteData: (domain) => ipcRenderer.invoke('site-data-clear', domain),
+  clearSiteData: (domain) => safeInvoke('site-data-clear', (value) => !!asString(value, 253), domain),
   getCertificateExceptions: () => ipcRenderer.invoke('certificate-exceptions-get'),
-  deleteCertificateException: (host) => ipcRenderer.invoke('certificate-exceptions-delete', host),
+  deleteCertificateException: (host) => safeInvoke('certificate-exceptions-delete', (value) => !!asString(value, 253), host),
   clearCertificateExceptions: () => ipcRenderer.invoke('certificate-exceptions-clear'),
 
   // Updates & Telemetry APIs
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
-  downloadUpdate: (url, version) => ipcRenderer.invoke('download-update', { url, version }),
+  downloadUpdate: (url, version, sha256 = '') => {
+    if (isWebUrl(url) && isVersion(version) && isSha256(sha256)) {
+      return ipcRenderer.invoke('download-update', { url, version, sha256 });
+    }
+    return Promise.reject(new Error('Invalid update package metadata.'));
+  },
   onUpdateDownloadProgress: (callback) => {
     const listener = (event, data) => callback(data);
     ipcRenderer.on('update-download-progress', listener);
     return () => ipcRenderer.removeListener('update-download-progress', listener);
   },
-  logTelemetryEvent: (action, data) => ipcRenderer.send('telemetry-log-event', { action, data }),
+  logTelemetryEvent: (action, data) => {
+    if (asString(action, 80)) ipcRenderer.send('telemetry-log-event', { action, data });
+  },
   logTelemetryCrash: (error) => ipcRenderer.send('telemetry-log-crash', error),
   getTelemetryLogs: () => ipcRenderer.invoke('telemetry-get-logs'),
   clearTelemetryLogs: () => ipcRenderer.invoke('telemetry-clear-logs'),
@@ -942,8 +1069,14 @@ contextBridge.exposeInMainWorld('oslo', {
 
   // Password Manager APIs
   getPasswords: () => ipcRenderer.invoke('passwords-get'),
-  saveCredential: (cred) => ipcRenderer.invoke('passwords-save', cred),
-  deleteCredential: (id) => ipcRenderer.invoke('passwords-delete', id),
+  auditPasswords: () => ipcRenderer.invoke('passwords-audit'),
+  saveCredential: (cred) => safeInvoke('passwords-save', (value) => {
+    return value && typeof value === 'object' &&
+      isWebUrl(value.origin) &&
+      !!asString(value.username, 512) &&
+      !!asString(value.password, 4096);
+  }, cred),
+  deleteCredential: (id) => safeInvoke('passwords-delete', (value) => !!asString(value, 128), id),
   importPasswords: () => ipcRenderer.invoke('passwords-import'),
   exportPasswords: () => ipcRenderer.invoke('passwords-export'),
   onPasswordSavePrompt: (callback) => {
@@ -954,11 +1087,29 @@ contextBridge.exposeInMainWorld('oslo', {
 
   // Session & Zoom APIs
   getSession: () => ipcRenderer.invoke('session-get'),
-  setTabPinned: (tabId, isPinned) => ipcRenderer.send('tab-set-pinned', { tabId, isPinned }),
-  setTabZoom: (tabId, zoom) => ipcRenderer.send('tab-set-zoom', { tabId, zoom }),
+  setTabPinned: (tabId, isPinned) => {
+    if (asTabId(tabId) && typeof isPinned === 'boolean') ipcRenderer.send('tab-set-pinned', { tabId, isPinned });
+  },
+  setTabZoom: (tabId, zoom) => {
+    const numericZoom = Number(zoom);
+    if (asTabId(tabId) && Number.isFinite(numericZoom) && numericZoom >= 0.3 && numericZoom <= 3) {
+      ipcRenderer.send('tab-set-zoom', { tabId, zoom: numericZoom });
+    }
+  },
   onZoomChanged: (callback) => {
     const listener = (event, data) => callback(data);
     ipcRenderer.on('ui-zoom-changed', listener);
     return () => ipcRenderer.removeListener('ui-zoom-changed', listener);
   }
-});
+};
+
+if (pageKind === 'app') {
+  contextBridge.exposeInMainWorld('oslo', osloApi);
+} else if (pageKind === 'newtab') {
+  contextBridge.exposeInMainWorld('oslo', {
+    getAllSettings: osloApi.getAllSettings,
+    getSearchEngine: osloApi.getSearchEngine,
+    onSettingsUpdated: osloApi.onSettingsUpdated,
+    onSettingBroadcast: osloApi.onSettingBroadcast
+  });
+}

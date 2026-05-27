@@ -425,7 +425,7 @@
             </button>
           </div>
           <div class="settings-nav-footer">
-            <span class="settings-nav-version">OSLO v<span id="about-version-display">1.0.7</span></span>
+            <span class="settings-nav-version">OSLO v<span id="about-version-display">1.2.1</span></span>
           </div>
         </nav>
 
@@ -1052,7 +1052,7 @@
                 <img src="../../assets/logo.svg" width="48" height="48" alt="OSLO" class="settings-logo-spin">
                 <div class="settings-about-info">
                   <span class="settings-about-name">OSLO Browser</span>
-                  <span class="settings-about-ver">v<span id="about-version-display-main">1.0.7</span></span>
+                  <span class="settings-about-ver">v<span id="about-version-display-main">1.2.1</span></span>
                 </div>
               </div>
               <div id="update-status-message" class="settings-update-msg" style="display: none;"></div>
@@ -1140,6 +1140,19 @@
                 </div>
                 <label class="switch"><input type="checkbox" id="settings-autofill-checkbox" checked><span
                     class="slider"></span></label>
+              </div>
+            </div>
+
+            <div class="settings-card">
+              <div class="settings-card-title" data-i18n="password-generator-title">Güçlü Şifre Üretici</div>
+              <p class="settings-page-desc"
+                style="margin-top: 4px; margin-bottom: 12px; font-size: 12px; color: var(--text-muted);"
+                data-i18n="password-generator-desc">Yeni hesaplar için yerel olarak güçlü ve benzersiz şifre üretin.</p>
+              <div class="password-generator-box">
+                <input id="generated-password-output" class="password-generator-output" type="text" readonly
+                  spellcheck="false" autocomplete="off" value="">
+                <button id="btn-generate-password" class="settings-action-btn accent" data-i18n="password-generate-btn">Üret</button>
+                <button id="btn-copy-generated-password" class="settings-action-btn secondary" data-i18n="password-copy-btn">Kopyala</button>
               </div>
             </div>
 
@@ -1246,7 +1259,7 @@
       </div>
       <div class="modal-body">
         <p style="font-size: 14px; font-weight: 600; color: var(--accent-color);"><span
-            data-i18n="new-version-text">OSLO Browser v</span><span id="update-modal-version">1.1.0</span></p>
+            data-i18n="new-version-text">OSLO Browser v</span><span id="update-modal-version">1.2.1</span></p>
         <p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;" data-i18n="release-notes-label">
           Yenilikler:</p>
         <pre id="update-modal-notes"
@@ -1261,6 +1274,9 @@
           <div style="width: 100%; height: 8px; background-color: var(--bg-tertiary); border-radius: 4px; overflow: hidden; border: 1px solid var(--border-color);">
             <div id="update-progress-bar" style="width: 0%; height: 100%; background: var(--accent-gradient); transition: width 0.1s ease;"></div>
           </div>
+          <div id="update-install-warning" class="update-install-warning" data-i18n="update-install-warning">
+            İndirme tamamlanınca kurulum otomatik olarak başlatılacak. Lütfen bekleyin; OSLO Browser kapanabilir ve kurulum tamamlandıktan sonra yeniden açılacaktır.
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -1269,15 +1285,6 @@
           style="background: var(--accent-gradient); color: #000; border:none;" data-i18n="download-update-btn">Şimdi
           İndir</button>
       </div>
-    </div>
-  </div>
-
-  <!-- Installing Overlay Modal -->
-  <div id="installing-overlay" class="modal-overlay" style="z-index: 99999; background: rgba(0,0,0,0.85); backdrop-filter: blur(12px);">
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; text-align: center; padding: 40px;">
-      <div class="installing-spinner"></div>
-      <h3 id="installing-title" style="color: #fff; font-size: 18px; font-weight: 600; margin: 0;">Güncelleme kuruluyor...</h3>
-      <p id="installing-desc" style="color: rgba(255,255,255,0.6); font-size: 13px; margin: 0; max-width: 320px;">Lütfen bekleyin, OSLO Browser güncelleniyor. Uygulama kurulum tamamlandıktan sonra otomatik olarak yeniden başlayacaktır.</p>
     </div>
   </div>
 
@@ -1413,6 +1420,10 @@
             <div class="audit-stat-card" style="flex: 1; padding: 12px; border-radius: 12px; background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
               <span style="font-size: 11px; color: #fbbf24;" data-i18n="password-audit-reused-count">Tekrar Alan</span>
               <strong id="audit-reused-count" style="font-size: 20px; color: #f59e0b;">0</strong>
+            </div>
+            <div class="audit-stat-card" style="flex: 1; padding: 12px; border-radius: 12px; background: rgba(220, 38, 38, 0.08); border: 1px solid rgba(220, 38, 38, 0.25); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;">
+              <span style="font-size: 11px; color: #fecaca;" data-i18n="password-audit-breached-count">Sızıntı</span>
+              <strong id="audit-breached-count" style="font-size: 20px; color: #f87171;">0</strong>
             </div>
           </div>
 

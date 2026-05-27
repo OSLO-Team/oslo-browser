@@ -4,6 +4,16 @@ import { applyLanguage, translations } from './i18n.js';
 import { renderBookmarks, renderBookmarksBar } from './panels.js';
 import { updateBookmarkIcon } from './tabs.js';
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
+}
+
 const appearanceDefaults = {
   theme: 'dark',
   accentColor: '#00ddff',
@@ -445,6 +455,32 @@ function isWeakPassword(password) {
   return !(hasLetter && hasNumber && hasSymbol);
 }
 
+function generateStrongPassword(length = 20) {
+  const groups = [
+    'ABCDEFGHJKLMNPQRSTUVWXYZ',
+    'abcdefghijkmnopqrstuvwxyz',
+    '23456789',
+    '!@#$%^&*()-_=+[]{};:,.?'
+  ];
+  const allChars = groups.join('');
+  const values = new Uint32Array(length);
+  crypto.getRandomValues(values);
+  const chars = groups.map((group, idx) => group[values[idx] % group.length]);
+  for (let i = chars.length; i < length; i++) {
+    chars.push(allChars[values[i] % allChars.length]);
+  }
+  for (let i = chars.length - 1; i > 0; i--) {
+    const swap = values[i] % (i + 1);
+    [chars[i], chars[swap]] = [chars[swap], chars[i]];
+  }
+  return chars.join('');
+}
+
+function setGeneratedPassword() {
+  const output = document.getElementById('generated-password-output');
+  if (output) output.value = generateStrongPassword();
+}
+
 function formatDateTime(timestamp) {
   if (!timestamp) return '-';
   try {
@@ -467,22 +503,11 @@ async function auditSavedPasswords() {
   window.dispatchEvent(new Event('resize'));
 
   try {
-    const passwords = await window.oslo.getPasswords();
-    
-    const totalCount = passwords ? passwords.length : 0;
-    const weakCount = passwords ? passwords.filter(item => isWeakPassword(item.password)).length : 0;
-    const passwordGroups = new Map();
-    if (passwords) {
-      passwords.forEach(item => {
-        const key = String(item.password || '');
-        if (!key) return;
-        if (!passwordGroups.has(key)) passwordGroups.set(key, []);
-        passwordGroups.get(key).push(item);
-      });
-    }
-    const reusedCount = Array.from(passwordGroups.values())
-      .filter(group => group.length > 1)
-      .reduce((sum, group) => sum + group.length, 0);
+    const audit = await window.oslo.auditPasswords();
+    const totalCount = audit?.total || 0;
+    const weakCount = audit?.weak || 0;
+    const reusedCount = audit?.reused || 0;
+    const breachedCount = audit?.breached || 0;
 
     const risksList = document.getElementById('audit-risks-list');
     const risksContainer = document.getElementById('audit-risks-container');
@@ -490,29 +515,17 @@ async function auditSavedPasswords() {
 
     if (risksList) risksList.innerHTML = '';
 
-    const issues = [];
-    if (passwords) {
-      passwords.forEach(item => {
-        const isWeak = isWeakPassword(item.password);
-        const isReused = passwordGroups.has(String(item.password || '')) && passwordGroups.get(String(item.password || '')).length > 1;
-        
-        if (isWeak || isReused) {
-          issues.push({
-            ...item,
-            isWeak,
-            isReused
-          });
-        }
-      });
-    }
+    const issues = audit?.issues || [];
 
     const totalEl = document.getElementById('audit-total-count');
     const weakEl = document.getElementById('audit-weak-count');
     const reusedEl = document.getElementById('audit-reused-count');
+    const breachedEl = document.getElementById('audit-breached-count');
 
     if (totalEl) totalEl.textContent = totalCount;
     if (weakEl) weakEl.textContent = weakCount;
     if (reusedEl) reusedEl.textContent = reusedCount;
+    if (breachedEl) breachedEl.textContent = breachedCount;
 
     if (totalCount === 0) {
       if (risksContainer) risksContainer.style.display = 'none';
@@ -542,7 +555,11 @@ async function auditSavedPasswords() {
         const safeDesc = allSafeEl.querySelector('p');
         const safeIcon = allSafeEl.querySelector('div');
         if (safeTitle) safeTitle.textContent = getText('password-audit-no-issues', 'Güvenlik riski bulunamadı!');
-        if (safeDesc) safeDesc.textContent = state.currentLang === 'tr' ? 'Tüm şifreleriniz güçlü ve benzersiz görünüyor.' : 'All of your passwords look strong and unique.';
+        if (safeDesc) {
+          safeDesc.textContent = audit?.leakChecksFailed > 0
+            ? getText('password-audit-leak-offline', 'Sızıntı kontrolü çevrimdışı kaldı; zayıf ve tekrarlanan şifre bulunmadı.')
+            : getText('password-audit-safe-desc', 'Tüm şifreleriniz güçlü, benzersiz ve sızıntı listelerinde görünmüyor.');
+        }
         if (safeIcon) {
           safeIcon.innerHTML = `
             <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
@@ -591,6 +608,14 @@ async function auditSavedPasswords() {
           const badge = document.createElement('span');
           badge.style.cssText = 'font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 6px; background-color: rgba(245, 158, 11, 0.12); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.2);';
           badge.textContent = getText('password-audit-reused-label', 'Tekrar');
+          badgeContainer.appendChild(badge);
+        }
+
+        if (issue.isBreached) {
+          const badge = document.createElement('span');
+          badge.style.cssText = 'font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 6px; background-color: rgba(220, 38, 38, 0.16); color: #fecaca; border: 1px solid rgba(220, 38, 38, 0.35);';
+          const count = issue.breachCount ? ` (${issue.breachCount})` : '';
+          badge.textContent = `${getText('password-audit-breached-label', 'Sızıntı')}${count}`;
           badgeContainer.appendChild(badge);
         }
 
@@ -1002,6 +1027,21 @@ export function initSettings() {
   updateDnsCustomProviderVisibility();
 
   document.getElementById('settings-audit-passwords')?.addEventListener('click', auditSavedPasswords);
+  document.getElementById('btn-generate-password')?.addEventListener('click', setGeneratedPassword);
+  document.getElementById('btn-copy-generated-password')?.addEventListener('click', async () => {
+    const output = document.getElementById('generated-password-output');
+    const value = output?.value || '';
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      showCustomAlert(getText('password-generator-title', 'Güçlü Şifre Üretici'), getText('password-copy-success', 'Şifre panoya kopyalandı.'));
+    } catch (error) {
+      output?.select();
+      document.execCommand('copy');
+      showCustomAlert(getText('password-generator-title', 'Güçlü Şifre Üretici'), getText('password-copy-success', 'Şifre panoya kopyalandı.'));
+    }
+  });
+  setGeneratedPassword();
 
   document.getElementById('close-password-audit-modal')?.addEventListener('click', () => {
     document.getElementById('password-audit-modal')?.classList.remove('open');
@@ -1044,14 +1084,7 @@ export function initSettings() {
     renderCertificateExceptionsList();
   });
 
-  const versionDisplay = document.getElementById('about-version-display');
-  if (versionDisplay) {
-    versionDisplay.textContent = '1.1.1';
-  }
-  const versionDisplayMain = document.getElementById('about-version-display-main');
-  if (versionDisplayMain) {
-    versionDisplayMain.textContent = '1.1.1';
-  }
+  loadAboutTabSystemInfo();
 
   if (navHome) {
     navHome.addEventListener('click', () => {
@@ -1463,12 +1496,16 @@ export function renderSavedPasswords() {
 export function loadAboutTabSystemInfo() {
   window.oslo.getSystemInfo().then(info => {
     if (!info) return;
+    const versionDisplay = document.getElementById('about-version-display');
+    const versionDisplayMain = document.getElementById('about-version-display-main');
     const valElectron = document.getElementById('sys-val-electron');
     const valChrome = document.getElementById('sys-val-chrome');
     const valNode = document.getElementById('sys-val-node');
     const valV8 = document.getElementById('sys-val-v8');
     const valUseragent = document.getElementById('sys-val-useragent');
     
+    if (versionDisplay) versionDisplay.textContent = info.appVersion || '1.2.1';
+    if (versionDisplayMain) versionDisplayMain.textContent = info.appVersion || '1.2.1';
     if (valElectron) valElectron.textContent = info.electron || '-';
     if (valChrome) valChrome.textContent = info.chrome || '-';
     if (valNode) valNode.textContent = info.node || '-';
@@ -1497,12 +1534,12 @@ function showCustomAlert(title, message) {
         <div class="modal-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding: 16px 20px;">
           <div style="display: flex; align-items: center; gap: 10px;">
             ${iconHtml}
-            <h3 style="font-size: 15px; font-weight: 600; color: var(--text-main); margin:0;">${title}</h3>
+            <h3 style="font-size: 15px; font-weight: 600; color: var(--text-main); margin:0;">${escapeHtml(title)}</h3>
           </div>
           <button class="modal-close-btn" style="font-size: 20px;">&times;</button>
         </div>
         <div class="modal-body" style="padding: 20px; font-size: 13px; color: var(--text-muted); line-height: 1.5; white-space: pre-wrap;">
-          ${message}
+          ${escapeHtml(message)}
         </div>
         <div class="modal-footer" style="border-top: 1px solid rgba(255, 255, 255, 0.05); background: rgba(0,0,0,0.1); padding: 12px 20px;">
           <button class="modal-btn primary-btn btn-ok" style="padding: 8px 18px; font-size: 12px; min-width: 80px; justify-content: center; display: flex; align-items: center;">${translations[state.currentLang]['modal-ok'] || 'Tamam'}</button>
@@ -1547,12 +1584,12 @@ function showCustomConfirm(title, message) {
         <div class="modal-header" style="border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding: 16px 20px;">
           <div style="display: flex; align-items: center; gap: 10px;">
             ${iconHtml}
-            <h3 style="font-size: 15px; font-weight: 600; color: var(--text-main); margin:0;">${title}</h3>
+            <h3 style="font-size: 15px; font-weight: 600; color: var(--text-main); margin:0;">${escapeHtml(title)}</h3>
           </div>
           <button class="modal-close-btn" style="font-size: 20px;">&times;</button>
         </div>
         <div class="modal-body" style="padding: 20px; font-size: 13px; color: var(--text-muted); line-height: 1.5; white-space: pre-wrap;">
-          ${message}
+          ${escapeHtml(message)}
         </div>
         <div class="modal-footer" style="border-top: 1px solid rgba(255, 255, 255, 0.05); background: rgba(0,0,0,0.1); padding: 12px 20px;">
           <button class="modal-btn secondary-btn btn-cancel" style="padding: 8px 18px; font-size: 12px; min-width: 80px; justify-content: center; display: flex; align-items: center;">${translations[state.currentLang]['modal-cancel'] || 'İptal'}</button>

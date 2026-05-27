@@ -3,6 +3,20 @@ import { state } from './state.js';
 import { translations } from './i18n.js';
 import { updateBookmarkIcon } from './tabs.js';
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value).replace(/`/g, '&#96;');
+}
+
 export function initPanels() {
   const bookmarksSearchInput = document.getElementById('bookmarks-search-input');
   if (bookmarksSearchInput) {
@@ -446,7 +460,7 @@ function renderTree(parentId, containerEl, depth) {
         <span class="folder-icon" style="color: var(--accent-color); margin-right: 6px; display: flex; align-items: center;">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
         </span>
-        <span class="folder-title" style="flex: 1; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${b.title}</span>
+        <span class="folder-title" style="flex: 1; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(b.title)}</span>
         <div class="panel-item-actions">
           <button class="panel-item-btn edit-btn" title="${translations[state.currentLang]['edit-folder-title'] || 'Klasörü Düzenle'}">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
@@ -518,13 +532,13 @@ function renderTree(parentId, containerEl, depth) {
       } catch (e) {
         domain = b.url;
       }
-      const faviconUrl = `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
+      const faviconUrl = `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(domain)}`;
       
       item.innerHTML = `
-        <img class="panel-item-favicon" src="${faviconUrl}" onerror="this.src='../../assets/logo.svg'">
+        <img class="panel-item-favicon" src="${escapeAttribute(faviconUrl)}" onerror="this.src='../../assets/logo.svg'">
         <div class="panel-item-info">
-          <div class="panel-item-title">${b.title}</div>
-          <div class="panel-item-url">${b.url}</div>
+          <div class="panel-item-title">${escapeHtml(b.title)}</div>
+          <div class="panel-item-url">${escapeHtml(b.url)}</div>
         </div>
         <div class="panel-item-actions">
           <button class="panel-item-btn edit-btn" title="${translations[state.currentLang]['edit-bookmark-title'] || 'Yer İmini Düzenle'}">
@@ -602,7 +616,7 @@ function showBookmarksDropdown(folderId, triggerEl, isSubmenu = false) {
         <span style="color: var(--accent-color); display: flex; align-items: center; margin-right: 4px;">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
         </span>
-        <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500;">${b.title}</span>
+        <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500;">${escapeHtml(b.title)}</span>
         <span style="font-size: 8px; color: var(--text-muted); margin-left: 8px;">▶</span>
       `;
       
@@ -663,11 +677,11 @@ function showBookmarksDropdown(folderId, triggerEl, isSubmenu = false) {
       } catch (e) {
         domain = b.url;
       }
-      const faviconUrl = `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
+      const faviconUrl = `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(domain)}`;
       
       itemEl.innerHTML = `
-        <img class="bookmarks-bar-favicon" src="${faviconUrl}" onerror="this.src='../../assets/logo.svg'" style="margin-right: 4px;">
-        <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${b.title}</span>
+        <img class="bookmarks-bar-favicon" src="${escapeAttribute(faviconUrl)}" onerror="this.src='../../assets/logo.svg'" style="margin-right: 4px;">
+        <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(b.title)}</span>
       `;
       
       itemEl.addEventListener('mouseenter', () => {
@@ -750,13 +764,13 @@ export function renderBookmarks() {
       } catch (e) {
         domain = b.url;
       }
-      const faviconUrl = `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
+      const faviconUrl = `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(domain)}`;
 
       item.innerHTML = `
-        <img class="panel-item-favicon" src="${faviconUrl}" onerror="this.src='../../assets/logo.svg'">
+        <img class="panel-item-favicon" src="${escapeAttribute(faviconUrl)}" onerror="this.src='../../assets/logo.svg'">
         <div class="panel-item-info">
-          <div class="panel-item-title">${b.title}</div>
-          <div class="panel-item-url">${b.url}</div>
+          <div class="panel-item-title">${escapeHtml(b.title)}</div>
+          <div class="panel-item-url">${escapeHtml(b.url)}</div>
         </div>
         <div class="panel-item-actions">
           <button class="panel-item-btn edit-btn" title="${translations[state.currentLang]['edit-bookmark-title'] || 'Yer İmini Düzenle'}">
@@ -850,7 +864,7 @@ export function renderBookmarksBar() {
         <span class="bookmarks-bar-favicon" style="color: var(--accent-color); display: flex; align-items: center;">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
         </span>
-        <span class="bookmarks-bar-title">${b.title}</span>
+        <span class="bookmarks-bar-title">${escapeHtml(b.title)}</span>
         <span style="font-size: 8px; color: var(--text-muted); margin-left: 2px;">▼</span>
       `;
       
@@ -867,11 +881,11 @@ export function renderBookmarksBar() {
       } catch (e) {
         domain = b.url;
       }
-      const faviconUrl = `https://www.google.com/s2/favicons?sz=64&domain=${domain}`;
+      const faviconUrl = `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(domain)}`;
       
       item.innerHTML = `
-        <img class="bookmarks-bar-favicon" src="${faviconUrl}" onerror="this.src='../../assets/logo.svg'">
-        <span class="bookmarks-bar-title">${b.title}</span>
+        <img class="bookmarks-bar-favicon" src="${escapeAttribute(faviconUrl)}" onerror="this.src='../../assets/logo.svg'">
+        <span class="bookmarks-bar-title">${escapeHtml(b.title)}</span>
       `;
       
       item.addEventListener('click', () => {
@@ -1000,13 +1014,13 @@ export function renderHistory() {
       }
 
       item.innerHTML = `
-        <div class="history-item-favicon">${(host || '?').charAt(0).toUpperCase()}</div>
+        <div class="history-item-favicon">${escapeHtml((host || '?').charAt(0).toUpperCase())}</div>
         <div class="history-item-main">
-          <div class="history-item-title">${displayTitle}</div>
-          <div class="history-item-url">${h.url}</div>
+          <div class="history-item-title">${escapeHtml(displayTitle)}</div>
+          <div class="history-item-url">${escapeHtml(h.url)}</div>
         </div>
         <div class="history-item-meta">
-          <span>${timeStr}</span>
+          <span>${escapeHtml(timeStr)}</span>
           <span class="history-new-tab-label">${translations[state.currentLang]['new-tab'] || 'Yeni sekme'}</span>
         </div>
       `;
@@ -1097,17 +1111,17 @@ export function renderDownloads() {
 
     card.innerHTML = `
       <div class="download-file-type-icon ${iconClass}">
-        ${ext}
+        ${escapeHtml(ext)}
       </div>
       <div class="download-item-details">
         <div class="download-item-card-header">
-          <div class="download-card-title" title="${d.name}">${d.name}</div>
-          <span class="download-card-status ${d.status}">${getDownloadStatusText(d.status)}</span>
+          <div class="download-card-title" title="${escapeAttribute(d.name)}">${escapeHtml(d.name)}</div>
+          <span class="download-card-status ${escapeAttribute(d.status)}">${escapeHtml(getDownloadStatusText(d.status))}</span>
         </div>
         
         <div class="download-card-progress-wrapper">
           <div class="download-card-progress-container">
-            <div class="download-card-progress-bar ${d.status}" style="width: ${percentage}%"></div>
+          <div class="download-card-progress-bar ${escapeAttribute(d.status)}" style="width: ${percentage}%"></div>
           </div>
           <div class="download-card-pct">%${percentage}</div>
         </div>

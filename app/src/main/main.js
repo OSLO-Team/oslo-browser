@@ -1,11 +1,14 @@
-const { app, BrowserWindow, WebContentsView, ipcMain, session, shell, dialog } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, session, shell, dialog, safeStorage } = require('electron');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const crypto = require('crypto');
 const Store = require('./store');
 const adblock = require('./adblock');
 
 // GitHub repository configuration for updates
-const GITHUB_REPO = 'emircanturan16/oslo-browser'; // Format: 'owner/repo'
+const GITHUB_REPO = 'OSLO-Team/oslo-browser'; // Format: 'owner/repo'
+const EXPECTED_UPDATE_PUBLISHERS = ['OSLO Browser', 'oslobrowser.com', 'Emir Can Turan'];
+const UPDATE_STATE_FILE = 'pending-update.json';
 
 // Create local stores
 let activeDownloads = {}; // downloadId -> { item, win, name, total }
@@ -89,6 +92,129 @@ const faviconCacheStore = new Store('favicon-cache', { cache: {} });
 const sessionStore = new Store('session', { tabs: [], tabOrders: {} });
 const passwordsStore = new Store('passwords', { passwords: [] });
 const certificateExceptionsStore = new Store('certificate-exceptions', { exceptions: {} });
+const passwordBreachCacheStore = new Store('password-breach-cache', { cache: {} });
+const PASSWORD_ENCODING = 'safeStorage:v1';
+
+function isPasswordEncryptionAvailable() {
+  try {
+    return !!safeStorage && safeStorage.isEncryptionAvailable();
+  } catch (error) {
+    return false;
+  }
+}
+
+function protectPassword(password) {
+  const value = typeof password === 'string' ? password : '';
+  if (!value) {
+    return { password: '', passwordEncoding: PASSWORD_ENCODING };
+  }
+
+  if (!isPasswordEncryptionAvailable()) {
+    console.warn('[PasswordManager] safeStorage is unavailable; keeping password in legacy format.');
+    return { password: value, passwordEncoding: 'plain' };
+  }
+
+  return {
+    password: safeStorage.encryptString(value).toString('base64'),
+    passwordEncoding: PASSWORD_ENCODING
+  };
+}
+
+function revealPassword(entry) {
+  if (!entry || typeof entry.password !== 'string') return '';
+  if (entry.passwordEncoding !== PASSWORD_ENCODING) {
+    return entry.password || '';
+  }
+
+  try {
+    return safeStorage.decryptString(Buffer.from(entry.password, 'base64'));
+  } catch (error) {
+    console.error('[PasswordManager] Failed to decrypt saved password:', error);
+    return '';
+  }
+}
+
+function toPublicCredential(entry) {
+  return {
+    ...entry,
+    password: revealPassword(entry),
+    passwordEncoding: undefined
+  };
+}
+
+function migratePasswordsToEncryptedStorage() {
+  if (!isPasswordEncryptionAvailable()) return;
+  const list = passwordsStore.get('passwords') || [];
+  let changed = false;
+  const migrated = list.map(entry => {
+    if (!entry || entry.passwordEncoding === PASSWORD_ENCODING) return entry;
+    const protectedSecret = protectPassword(entry.password || '');
+    changed = true;
+    return {
+      ...entry,
+      ...protectedSecret
+    };
+  });
+
+  if (changed) {
+    passwordsStore.set('passwords', migrated);
+  }
+}
+
+function scorePasswordStrength(password) {
+  const value = String(password || '');
+  let score = 0;
+  if (value.length >= 12) score += 2;
+  else if (value.length >= 10) score += 1;
+  if (/[a-z]/.test(value)) score += 1;
+  if (/[A-Z]/.test(value)) score += 1;
+  if (/\d/.test(value)) score += 1;
+  if (/[^a-zA-Z0-9]/.test(value)) score += 1;
+  if (value.length >= 16) score += 1;
+  if (/(.)\1{2,}/.test(value)) score -= 1;
+  if (/password|qwerty|123456|admin|oslo|sifre|şifre/i.test(value)) score -= 2;
+  return Math.max(0, score);
+}
+
+function isWeakPasswordValue(password) {
+  return scorePasswordStrength(password) < 4;
+}
+
+async function checkPasswordBreach(password) {
+  const value = String(password || '');
+  if (!value) return { breached: false, count: 0, checked: false };
+
+  const sha1 = crypto.createHash('sha1').update(value).digest('hex').toUpperCase();
+  const prefix = sha1.slice(0, 5);
+  const suffix = sha1.slice(5);
+  const cache = passwordBreachCacheStore.get('cache') || {};
+  if (cache[sha1]) return cache[sha1];
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
+      headers: {
+        'User-Agent': 'oslo-browser-password-audit',
+        'Add-Padding': 'true'
+      },
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error(`HIBP status ${response.status}`);
+    const body = await response.text();
+    const match = body.split(/\r?\n/).find(line => line.startsWith(suffix));
+    const count = match ? parseInt(match.split(':')[1], 10) || 0 : 0;
+    const result = { breached: count > 0, count, checked: true };
+    cache[sha1] = result;
+    passwordBreachCacheStore.set('cache', cache);
+    return result;
+  } catch (error) {
+    console.error('[PasswordAudit] Breach check failed:', error.message || error);
+    return { breached: false, count: 0, checked: false, error: error.message || String(error) };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 // DNS-over-HTTPS Setup
 const dohTemplates = {
@@ -152,9 +278,129 @@ let activeTabs = {}; // windowId -> activeTabId
 let windowBounds = {}; // windowId -> bounds
 let tabOrders = {}; // windowId -> [tabId, tabId, ...]
 let incognitoSession = null;
+const spaceSessions = new Map();
+const configuredProfilePartitions = new Set();
 let pendingPermissionRequests = {};
 let permissionRequestId = 0;
 const permissionsStore = new Store('permissions', { permissions: {} });
+
+function getSpacePartition(spaceName) {
+  const normalized = String(spaceName || 'Genel').trim() || 'Genel';
+  const slug = normalized
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 42);
+  const hash = crypto.createHash('sha1').update(normalized).digest('hex').slice(0, 8);
+  return `persist:oslo-space-${slug || 'genel'}-${hash}`;
+}
+
+function cleanSessionUserAgent(sessionInstance) {
+  try {
+    const rawUa = sessionInstance.getUserAgent();
+    const cleanUa = rawUa
+      .replace(/Electron\/[0-9.]+\s?/g, '')
+      .replace(/oslobrowser\/[0-9.]+\s?/gi, '')
+      .trim();
+    sessionInstance.setUserAgent(cleanUa);
+  } catch (err) {
+    console.error('Failed to clean User Agent:', err);
+  }
+}
+
+function setupProfilePermissionHandler(sessionInstance) {
+  sessionInstance.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    const requestingUrl = details.requestingUrl || webContents.getURL();
+    let domain = '';
+    try {
+      domain = new URL(requestingUrl).hostname;
+    } catch (e) {
+      domain = requestingUrl;
+    }
+
+    const resolvePermissionType = () => {
+      if (permission === 'notifications') return 'notifications';
+      if (permission === 'geolocation') return 'location';
+      if (permission === 'clipboard-read') return 'clipboard';
+      if (permission === 'media') {
+        const types = details.mediaTypes || [];
+        if (types.includes('video')) return 'camera';
+        if (types.includes('audio')) return 'microphone';
+        return 'camera';
+      }
+      return permission;
+    };
+
+    const permissionType = resolvePermissionType();
+    const defaultSettingMap = {
+      notifications: 'permissionNotifications',
+      camera: 'permissionCamera',
+      microphone: 'permissionMicrophone',
+      location: 'permissionLocation',
+      clipboard: 'permissionClipboard'
+    };
+
+    if (defaultSettingMap[permissionType]) {
+      const saved = permissionsStore.get('permissions') || {};
+      const decision = saved[`${domain}:${permissionType}`];
+
+      if (decision !== undefined) {
+        return callback(decision);
+      }
+
+      const defaultDecision = settingsStore.get(defaultSettingMap[permissionType]) || 'ask';
+      if (defaultDecision === 'allow') return callback(true);
+      if (defaultDecision === 'block') return callback(false);
+
+      let win = BrowserWindow.fromWebContents(webContents);
+      if (!win) {
+        const tab = Object.values(tabs).find(item => item.view && item.view.webContents === webContents);
+        if (tab && tab.windowId) {
+          win = BrowserWindow.fromId(tab.windowId);
+        }
+      }
+      if (win) {
+        const reqId = ++permissionRequestId;
+        pendingPermissionRequests[reqId] = { callback, domain, permission: permissionType };
+        sendToUI(win, 'ui-permission-request', { id: reqId, domain, permission: permissionType });
+      } else {
+        callback(false);
+      }
+    } else {
+      callback(true);
+    }
+  });
+}
+
+function configureProfileSession(sessionInstance, label, isIncognito = false) {
+  const partition = sessionInstance.getPartition ? sessionInstance.getPartition() : label;
+  if (configuredProfilePartitions.has(partition)) return sessionInstance;
+  cleanSessionUserAgent(sessionInstance);
+  adblock.setupAdBlocker(sessionInstance, label);
+  setupDownloadListener(sessionInstance, isIncognito);
+  setupProfilePermissionHandler(sessionInstance);
+  configuredProfilePartitions.add(partition);
+  return sessionInstance;
+}
+
+function getSessionForSpace(spaceName, isIncognito = false) {
+  if (isIncognito) return incognitoSession || session.fromPartition('incognito');
+  const partition = getSpacePartition(spaceName);
+  if (!spaceSessions.has(partition)) {
+    const spaceSession = session.fromPartition(partition);
+    configureProfileSession(spaceSession, `space:${spaceName || 'Genel'}`, false);
+    spaceSessions.set(partition, spaceSession);
+  }
+  return spaceSessions.get(partition);
+}
+
+function getManagedSessions(includeIncognito = false) {
+  const sessions = new Set([session.defaultSession, ...spaceSessions.values()]);
+  if (includeIncognito && incognitoSession) sessions.add(incognitoSession);
+  return Array.from(sessions);
+}
 
 function getNetworkPrivacyOptions() {
   return {
@@ -547,7 +793,7 @@ function createTab(url, isIncognito = false, space = 'Genel', winId = null, tabI
   const defaultZoom = parseFloat(settingsStore.get('defaultPageZoom')) || 1.0;
   const initialZoom = typeof zoomFactor === 'number' ? zoomFactor : defaultZoom;
 
-  const viewSession = isIncognito ? incognitoSession : session.defaultSession;
+  const viewSession = getSessionForSpace(space, isIncognito);
 
   const view = new WebContentsView({
     webPreferences: {
@@ -665,7 +911,7 @@ function wakeTab(tabId) {
   const tab = tabs[tabId];
   if (!tab || !tab.isSleeping) return;
 
-  const viewSession = tab.isIncognito ? incognitoSession : session.defaultSession;
+  const viewSession = getSessionForSpace(tab.space, tab.isIncognito);
 
   const view = new WebContentsView({
     webPreferences: {
@@ -796,6 +1042,70 @@ function sendToUI(win, channel, data) {
       }
     });
   }
+}
+
+function isMainUiSender(event) {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  return !!(win && windows.has(win) && win.webContents === event.sender);
+}
+
+function getSenderTab(event) {
+  return Object.values(tabs).find(tab => tab.view && tab.view.webContents === event.sender) || null;
+}
+
+function isKnownTabSender(event) {
+  return !!getSenderTab(event);
+}
+
+function getSenderWebOrigin(event) {
+  try {
+    const url = event.sender.getURL();
+    const parsed = new URL(url);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.origin;
+    }
+  } catch (error) { }
+  return '';
+}
+
+function assertMainUiSender(event) {
+  if (!isMainUiSender(event)) {
+    throw new Error('Unauthorized IPC sender');
+  }
+  return BrowserWindow.fromWebContents(event.sender);
+}
+
+function ignoreUntrustedMainUiSender(event, channel) {
+  if (isMainUiSender(event)) return false;
+  console.warn(`[IPC] Blocked ${channel} from untrusted sender:`, event.senderFrame?.url || event.sender.getURL());
+  return true;
+}
+
+function assertKnownTabSender(event) {
+  const tab = getSenderTab(event);
+  if (!tab) {
+    throw new Error('Unauthorized tab IPC sender');
+  }
+  return tab;
+}
+
+function isLocalNewTabSender(event) {
+  if (!isKnownTabSender(event)) return false;
+  try {
+    const url = event.sender.getURL().replace(/\\/g, '/').toLowerCase();
+    return url.startsWith('file:') && url.endsWith('/newtab/newtab.html');
+  } catch (error) {
+    return false;
+  }
+}
+
+function assertSettingsReadSender(event) {
+  if (isMainUiSender(event) || isLocalNewTabSender(event)) return;
+  throw new Error('Unauthorized settings IPC sender');
+}
+
+function isKnownSettingKey(key) {
+  return Object.prototype.hasOwnProperty.call(DEFAULT_SETTINGS, key);
 }
 
 function saveSession() {
@@ -970,6 +1280,7 @@ function setupDownloadListener(sessionInstance, isIncognito = false) {
 
 // IPC Listeners
 ipcMain.on('tab-create', (event, data) => {
+  if (ignoreUntrustedMainUiSender(event, 'tab-create')) return;
   const win = BrowserWindow.fromWebContents(event.sender);
   const winId = win ? win.id : null;
   const url = typeof data === 'string' ? data : (data ? data.url : null);
@@ -1000,6 +1311,7 @@ ipcMain.on('tab-create', (event, data) => {
 });
 
 ipcMain.on('tab-sleep', (event, tabId) => {
+  if (ignoreUntrustedMainUiSender(event, 'tab-sleep')) return;
   const tab = tabs[tabId];
   if (tab) {
     const win = BrowserWindow.fromId(tab.windowId);
@@ -1010,6 +1322,7 @@ ipcMain.on('tab-sleep', (event, tabId) => {
 });
 
 ipcMain.on('tabs-reorder', (event, tabIds) => {
+  if (ignoreUntrustedMainUiSender(event, 'tabs-reorder')) return;
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win && Array.isArray(tabIds)) {
     tabOrders[win.id] = tabIds;
@@ -1018,6 +1331,7 @@ ipcMain.on('tabs-reorder', (event, tabIds) => {
 });
 
 ipcMain.on('tab-close', (event, tabId) => {
+  if (ignoreUntrustedMainUiSender(event, 'tab-close')) return;
   const tab = tabs[tabId];
   if (!tab) return;
   const win = BrowserWindow.fromId(tab.windowId);
@@ -1066,10 +1380,12 @@ ipcMain.on('tab-close', (event, tabId) => {
 });
 
 ipcMain.on('tab-select', (event, tabId) => {
+  if (ignoreUntrustedMainUiSender(event, 'tab-select')) return;
   selectTab(tabId);
 });
 
 ipcMain.on('tab-navigate', (event, { tabId, url }) => {
+  if (ignoreUntrustedMainUiSender(event, 'tab-navigate')) return;
   const tab = tabs[tabId];
   if (tab) {
     if (tab.isSleeping) {
@@ -1085,6 +1401,7 @@ ipcMain.on('tab-navigate', (event, { tabId, url }) => {
 });
 
 ipcMain.on('tab-back', (event, tabId) => {
+  if (ignoreUntrustedMainUiSender(event, 'tab-back')) return;
   const tab = tabs[tabId];
   if (tab && tab.view && tab.view.webContents.canGoBack()) {
     tab.view.webContents.goBack();
@@ -1092,6 +1409,7 @@ ipcMain.on('tab-back', (event, tabId) => {
 });
 
 ipcMain.on('tab-forward', (event, tabId) => {
+  if (ignoreUntrustedMainUiSender(event, 'tab-forward')) return;
   const tab = tabs[tabId];
   if (tab && tab.view && tab.view.webContents.canGoForward()) {
     tab.view.webContents.goForward();
@@ -1099,6 +1417,7 @@ ipcMain.on('tab-forward', (event, tabId) => {
 });
 
 ipcMain.on('tab-reload', (event, tabId) => {
+  if (ignoreUntrustedMainUiSender(event, 'tab-reload')) return;
   const tab = tabs[tabId];
   if (tab && tab.view) {
     tab.view.webContents.reload();
@@ -1106,16 +1425,52 @@ ipcMain.on('tab-reload', (event, tabId) => {
 });
 
 ipcMain.on('tab-update-space', (event, { tabId, space }) => {
+  if (ignoreUntrustedMainUiSender(event, 'tab-update-space')) return;
   const tab = tabs[tabId];
   if (tab) {
+    const previousSpace = tab.space;
     tab.space = space;
     const win = BrowserWindow.fromId(tab.windowId);
+    if (!tab.isIncognito && previousSpace !== space && tab.view && !tab.isSleeping) {
+      const currentUrl = tab.view.webContents.getURL() || tab.url;
+      const oldView = tab.view;
+      if (win && win.contentView.children.includes(oldView)) {
+        win.contentView.removeChildView(oldView);
+      }
+      oldView.webContents.close();
+
+      const view = new WebContentsView({
+        webPreferences: {
+          preload: path.join(__dirname, '../preload.js'),
+          contextIsolation: true,
+          nodeIntegration: false,
+          session: getSessionForSpace(space, false),
+          plugins: true
+        }
+      });
+
+      tab.view = view;
+      setupTabListeners(tab);
+      view.webContents.setZoomFactor(tab.zoomFactor || parseFloat(settingsStore.get('defaultPageZoom')) || 1.0);
+
+      if (currentUrl && !currentUrl.includes('newtab.html')) {
+        view.webContents.loadURL(formatUrl(currentUrl));
+      } else {
+        view.webContents.loadFile(path.join(__dirname, '../newtab/newtab.html'));
+      }
+
+      if (win && activeTabs[win.id] === tabId && windowBounds[win.id] && windowBounds[win.id].width > 0) {
+        win.contentView.addChildView(view);
+        view.setBounds(windowBounds[win.id]);
+      }
+    }
     sendToUI(win, 'ui-tab-updated', { id: tabId, space: space });
     saveSession();
   }
 });
 
 ipcMain.on('tab-set-zoom', (event, { tabId, zoom }) => {
+  if (ignoreUntrustedMainUiSender(event, 'tab-set-zoom')) return;
   const tab = tabs[tabId];
   if (tab) {
     tab.zoomFactor = zoom;
@@ -1130,6 +1485,7 @@ ipcMain.on('tab-set-zoom', (event, { tabId, zoom }) => {
 
 // Update WebContentsView position and size based on Renderer UI container
 ipcMain.on('tab-bounds', (event, bounds) => {
+  if (ignoreUntrustedMainUiSender(event, 'tab-bounds')) return;
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return;
 
@@ -1158,11 +1514,13 @@ ipcMain.on('tab-bounds', (event, bounds) => {
 
 // Window Control IPC
 ipcMain.on('window-minimize', (event) => {
+  if (ignoreUntrustedMainUiSender(event, 'window-minimize')) return;
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win) win.minimize();
 });
 
 ipcMain.on('window-maximize', (event) => {
+  if (ignoreUntrustedMainUiSender(event, 'window-maximize')) return;
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win) {
     if (win.isMaximized()) {
@@ -1174,28 +1532,33 @@ ipcMain.on('window-maximize', (event) => {
 });
 
 ipcMain.on('window-close', (event) => {
+  if (ignoreUntrustedMainUiSender(event, 'window-close')) return;
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win) win.close();
 });
 
-ipcMain.on('window-new', () => {
+ipcMain.on('window-new', (event) => {
+  if (ignoreUntrustedMainUiSender(event, 'window-new')) return;
   createMainWindow();
 });
 
 ipcMain.on('download-open', (event, filePath) => {
+  if (ignoreUntrustedMainUiSender(event, 'download-open')) return;
   if (filePath) {
     shell.openPath(filePath);
   }
 });
 
 ipcMain.on('open-external', (event, url) => {
+  if (ignoreUntrustedMainUiSender(event, 'open-external')) return;
   if (url) {
     shell.openExternal(url);
   }
 });
 
 // Storage and Preferences IPC handlers
-ipcMain.handle('bookmarks-get', () => {
+ipcMain.handle('bookmarks-get', (event) => {
+  assertMainUiSender(event);
   return bookmarksStore.get('bookmarks');
 });
 
@@ -1240,6 +1603,7 @@ function buildNativeBookmarksMenu(bookmarks, folderId, win) {
 }
 
 ipcMain.on('show-bookmarks-folder-menu', (event, { folderId, x, y }) => {
+  if (ignoreUntrustedMainUiSender(event, 'show-bookmarks-folder-menu')) return;
   const win = BrowserWindow.fromWebContents(event.sender);
   const bookmarks = bookmarksStore.get('bookmarks') || [];
   const menu = buildNativeBookmarksMenu(bookmarks, folderId, win);
@@ -1251,11 +1615,13 @@ ipcMain.on('show-bookmarks-folder-menu', (event, { folderId, x, y }) => {
 });
 
 ipcMain.handle('bookmarks-set', (event, bookmarks) => {
+  assertMainUiSender(event);
   bookmarksStore.set('bookmarks', bookmarks);
   return bookmarks;
 });
 
 ipcMain.handle('bookmarks-add', (event, bookmark) => {
+  assertMainUiSender(event);
   const bookmarks = bookmarksStore.get('bookmarks');
   if (!bookmarks.some(b => b.url === bookmark.url)) {
     bookmarksStore.push('bookmarks', bookmark);
@@ -1264,11 +1630,13 @@ ipcMain.handle('bookmarks-add', (event, bookmark) => {
 });
 
 ipcMain.handle('bookmarks-remove', (event, url) => {
+  assertMainUiSender(event);
   bookmarksStore.filter('bookmarks', b => b.url !== url);
   return bookmarksStore.get('bookmarks');
 });
 
 ipcMain.handle('bookmarks-update', (event, { oldUrl, bookmark }) => {
+  assertMainUiSender(event);
   const bookmarks = bookmarksStore.get('bookmarks') || [];
   const index = bookmarks.findIndex(b => b.url === oldUrl);
   if (index !== -1) {
@@ -1279,11 +1647,13 @@ ipcMain.handle('bookmarks-update', (event, { oldUrl, bookmark }) => {
   return bookmarksStore.get('bookmarks');
 });
 
-ipcMain.handle('history-get', () => {
+ipcMain.handle('history-get', (event) => {
+  assertMainUiSender(event);
   return historyStore.get('history');
 });
 
 ipcMain.handle('history-clear', (event, range) => {
+  assertMainUiSender(event);
   if (!range || range === 'all') {
     historyStore.set('history', []);
   } else {
@@ -1315,7 +1685,167 @@ function isNewerVersion(current, latest) {
   return false;
 }
 
-ipcMain.handle('check-for-updates', async () => {
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function escapeHtmlText(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
+}
+
+function extractSha256FromText(text, assetName = '') {
+  if (!text || typeof text !== 'string') return '';
+  if (assetName) {
+    const assetMatch = text.match(new RegExp(`${escapeRegExp(assetName)}[\\s\\S]{0,300}?\\b([a-fA-F0-9]{64})\\b`, 'i'));
+    if (assetMatch) return assetMatch[1].toLowerCase();
+  }
+
+  const labeledMatch = text.match(/\bsha(?:-?256)?(?:sum|checksum)?\b[^a-fA-F0-9]{0,80}([a-fA-F0-9]{64})/i);
+  if (labeledMatch) return labeledMatch[1].toLowerCase();
+
+  const anyMatch = text.match(/\b[a-fA-F0-9]{64}\b/);
+  return anyMatch ? anyMatch[0].toLowerCase() : '';
+}
+
+async function resolveReleaseSha256(release, winAsset) {
+  const assetName = winAsset?.name || '';
+  const bodySha = extractSha256FromText(release.body || '', assetName);
+  if (bodySha) return bodySha;
+
+  const checksumAsset = (release.assets || []).find(asset => {
+    const name = String(asset.name || '').toLowerCase();
+    return asset.browser_download_url && (
+      name.endsWith('.sha256') ||
+      name.endsWith('.sha256sum') ||
+      name.includes('checksum')
+    );
+  });
+
+  if (!checksumAsset) return '';
+
+  try {
+    const response = await fetch(checksumAsset.browser_download_url, {
+      headers: { 'User-Agent': 'oslo-browser-updater' }
+    });
+    if (!response.ok) return '';
+    const checksumText = await response.text();
+    return extractSha256FromText(checksumText, assetName);
+  } catch (error) {
+    console.error('Failed to read update checksum asset:', error);
+    return '';
+  }
+}
+
+function isValidUpdateVersion(value) {
+  return typeof value === 'string' && /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(value);
+}
+
+function isValidSha256(value) {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value);
+}
+
+function isTrustedUpdateUrl(value) {
+  if (typeof value !== 'string' || value.length > 4096) return false;
+  try {
+    const parsed = new URL(value);
+    const allowedHosts = new Set(['github.com', 'oslobrowser.com', 'www.oslobrowser.com']);
+    return parsed.protocol === 'https:' && allowedHosts.has(parsed.hostname.toLowerCase());
+  } catch (error) {
+    return false;
+  }
+}
+
+function verifyWindowsInstallerSignature(filePath) {
+  if (process.platform !== 'win32') {
+    return { status: 'Skipped', subject: '', issuer: '', platform: process.platform };
+  }
+
+  const { spawnSync } = require('child_process');
+  const script = `
+    $sig = Get-AuthenticodeSignature -LiteralPath ${JSON.stringify(filePath)}
+    $subject = if ($sig.SignerCertificate) { $sig.SignerCertificate.Subject } else { '' }
+    $issuer = if ($sig.SignerCertificate) { $sig.SignerCertificate.Issuer } else { '' }
+    [pscustomobject]@{
+      Status = $sig.Status.ToString()
+      Subject = $subject
+      Issuer = $issuer
+    } | ConvertTo-Json -Compress
+  `;
+  const encoded = Buffer.from(script, 'utf16le').toString('base64');
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded], {
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 20000
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(`Signature verification failed: ${result.stderr || 'PowerShell exited with an error'}`);
+  }
+
+  return JSON.parse(result.stdout || '{}');
+}
+
+function assertTrustedInstallerSignature(filePath) {
+  const signature = verifyWindowsInstallerSignature(filePath);
+  if (signature.status === 'Skipped') return signature;
+  if (signature.Status !== 'Valid' && signature.status !== 'Valid') {
+    throw new Error(`Güncelleme imzası geçerli değil: ${signature.Status || signature.status || 'Unknown'}`);
+  }
+
+  const subject = signature.Subject || signature.subject || '';
+  const normalizedSubject = subject.toLowerCase();
+  const publisherOk = EXPECTED_UPDATE_PUBLISHERS.some(name => normalizedSubject.includes(name.toLowerCase()));
+  if (!publisherOk) {
+    throw new Error(`Güncelleme yayıncısı güvenilir listede değil: ${subject || 'Bilinmiyor'}`);
+  }
+
+  return signature;
+}
+
+function getPendingUpdatePath() {
+  return path.join(app.getPath('userData'), UPDATE_STATE_FILE);
+}
+
+function writePendingUpdateState(state) {
+  const fs = require('fs');
+  fs.writeFileSync(getPendingUpdatePath(), JSON.stringify(state, null, 2), 'utf8');
+}
+
+function reconcilePendingUpdateState() {
+  const fs = require('fs');
+  const statePath = getPendingUpdatePath();
+  if (!fs.existsSync(statePath)) return;
+
+  try {
+    const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+    if (state.targetVersion && app.getVersion() === state.targetVersion) {
+      fs.unlinkSync(statePath);
+      return;
+    }
+
+    if (state.status === 'installer-started') {
+      state.status = 'rollback-required';
+      state.lastSeenVersion = app.getVersion();
+      state.checkedAt = Date.now();
+      fs.writeFileSync(statePath, JSON.stringify(state, null, 2), 'utf8');
+      console.warn('[Updater] Pending update did not complete. Rollback marker left for diagnostics:', state);
+    }
+  } catch (error) {
+    console.error('[Updater] Failed to reconcile pending update state:', error);
+  }
+}
+
+ipcMain.handle('check-for-updates', async (event) => {
+  assertMainUiSender(event);
   const currentVersion = app.getVersion();
   try {
     const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
@@ -1332,10 +1862,15 @@ ipcMain.handle('check-for-updates', async () => {
     const latestVersion = release.tag_name.replace(/^v/, '');
 
     let downloadUrl = 'https://oslobrowser.com/download';
+    let assetName = '';
+    let sha256 = '';
     if (release.assets && release.assets.length > 0) {
-      const winAsset = release.assets.find(asset => asset.name.endsWith('.exe') || asset.name.endsWith('.zip'));
+      const winAsset = release.assets.find(asset => asset.name.endsWith('.exe')) ||
+        release.assets.find(asset => asset.name.endsWith('.zip'));
       if (winAsset) {
         downloadUrl = winAsset.browser_download_url;
+        assetName = winAsset.name;
+        sha256 = await resolveReleaseSha256(release, winAsset);
       } else {
         downloadUrl = release.html_url;
       }
@@ -1348,7 +1883,10 @@ ipcMain.handle('check-for-updates', async () => {
       currentVersion,
       latestVersion,
       releaseNotes: release.body || '',
-      downloadUrl
+      downloadUrl,
+      assetName,
+      sha256,
+      expectedSha256: sha256
     };
   } catch (error) {
     console.error('Failed to check for updates from GitHub:', error);
@@ -1363,7 +1901,8 @@ ipcMain.handle('check-for-updates', async () => {
   }
 });
 
-ipcMain.handle('download-update', async (event, { url, version }) => {
+ipcMain.handle('download-update', async (event, { url, version, sha256 }) => {
+  assertMainUiSender(event);
   const fs = require('fs');
   const { spawn } = require('child_process');
   const os = require('os');
@@ -1374,6 +1913,16 @@ ipcMain.handle('download-update', async (event, { url, version }) => {
   const installerPath = path.join(tempDir, `OSLO-Browser-${version}-Setup.exe`);
   
   try {
+    if (!isValidUpdateVersion(version)) {
+      throw new Error('Geçersiz güncelleme sürümü.');
+    }
+    if (!isTrustedUpdateUrl(url) || !/\.exe(?:$|[?#])/i.test(url)) {
+      throw new Error('Güncelleme paketi güvenilir bir HTTPS kurulum dosyası değil.');
+    }
+    if (!isValidSha256(sha256)) {
+      throw new Error('Güncelleme paketi için SHA-256 doğrulama bilgisi eksik.');
+    }
+
     // Fetch automatically handles HTTP/HTTPS redirects out-of-the-box
     const response = await fetch(url, {
       headers: {
@@ -1406,6 +1955,23 @@ ipcMain.handle('download-update', async (event, { url, version }) => {
     }
     
     await new Promise((resolve) => file.end(resolve));
+
+    const actualSha256 = crypto.createHash('sha256').update(fs.readFileSync(installerPath)).digest('hex');
+    if (actualSha256.toLowerCase() !== sha256.toLowerCase()) {
+      throw new Error('Güncelleme paketi SHA-256 doğrulamasından geçemedi.');
+    }
+
+    const signature = assertTrustedInstallerSignature(installerPath);
+
+    writePendingUpdateState({
+      status: 'installer-started',
+      targetVersion: version,
+      previousVersion: app.getVersion(),
+      installerPath,
+      sha256: actualSha256,
+      signature,
+      startedAt: Date.now()
+    });
     
     // Spawn the installer detached from OSLO so it remains alive after OSLO exits
     const child = spawn(installerPath, [], {
@@ -1431,9 +1997,11 @@ ipcMain.handle('download-update', async (event, { url, version }) => {
   }
 });
 
-ipcMain.handle('system-info-get', () => {
+ipcMain.handle('system-info-get', (event) => {
+  assertMainUiSender(event);
   const os = require('os');
   return {
+    appVersion: app.getVersion(),
     electron: process.versions.electron,
     chrome: process.versions.chrome,
     node: process.versions.node,
@@ -1447,12 +2015,15 @@ ipcMain.handle('system-info-get', () => {
   };
 });
 
-ipcMain.handle('clear-browser-data', async () => {
+ipcMain.handle('clear-browser-data', async (event) => {
+  assertMainUiSender(event);
   try {
-    await session.defaultSession.clearCache();
-    await session.defaultSession.clearStorageData({
-      storages: ['appcache', 'cookies', 'filesystem', 'indexdb', 'localstorage', 'shadercache', 'websql', 'serviceworkers', 'cachestorage']
-    });
+    await Promise.all(getManagedSessions(false).map(async (profileSession) => {
+      await profileSession.clearCache();
+      await profileSession.clearStorageData({
+        storages: ['appcache', 'cookies', 'filesystem', 'indexdb', 'localstorage', 'shadercache', 'websql', 'serviceworkers', 'cachestorage']
+      });
+    }));
     return { success: true };
   } catch (error) {
     console.error('Failed to clear browser data:', error);
@@ -1461,6 +2032,7 @@ ipcMain.handle('clear-browser-data', async () => {
 });
 
 ipcMain.on('telemetry-log-event', (event, { action, data }) => {
+  if (ignoreUntrustedMainUiSender(event, 'telemetry-log-event')) return;
   if (settingsStore.get('telemetryEnabled')) {
     const events = telemetryStore.get('events') || [];
     events.push({
@@ -1474,6 +2046,7 @@ ipcMain.on('telemetry-log-event', (event, { action, data }) => {
 });
 
 ipcMain.on('telemetry-log-crash', (event, error) => {
+  if (ignoreUntrustedMainUiSender(event, 'telemetry-log-crash')) return;
   if (settingsStore.get('telemetryEnabled') && error) {
     const crashes = telemetryStore.get('crashes') || [];
     crashes.push({
@@ -1487,24 +2060,28 @@ ipcMain.on('telemetry-log-crash', (event, error) => {
   }
 });
 
-ipcMain.handle('telemetry-get-logs', () => {
+ipcMain.handle('telemetry-get-logs', (event) => {
+  assertMainUiSender(event);
   return {
     events: telemetryStore.get('events') || [],
     crashes: telemetryStore.get('crashes') || []
   };
 });
 
-ipcMain.handle('telemetry-clear-logs', () => {
+ipcMain.handle('telemetry-clear-logs', (event) => {
+  assertMainUiSender(event);
   telemetryStore.set('events', []);
   telemetryStore.set('crashes', []);
   return { success: true };
 });
 
-ipcMain.handle('permissions-get-all', () => {
+ipcMain.handle('permissions-get-all', (event) => {
+  assertMainUiSender(event);
   return permissionsStore.get('permissions') || {};
 });
 
 ipcMain.handle('permissions-delete', (event, key) => {
+  assertMainUiSender(event);
   const saved = permissionsStore.get('permissions') || {};
   delete saved[key];
   permissionsStore.set('permissions', saved);
@@ -1512,6 +2089,7 @@ ipcMain.handle('permissions-delete', (event, key) => {
 });
 
 ipcMain.handle('permissions-set', (event, key, value) => {
+  assertMainUiSender(event);
   const saved = permissionsStore.get('permissions') || {};
   if (value === null || value === undefined) {
     delete saved[key];
@@ -1522,7 +2100,8 @@ ipcMain.handle('permissions-set', (event, key, value) => {
   return saved;
 });
 
-ipcMain.handle('site-data-get', async () => {
+ipcMain.handle('site-data-get', async (event) => {
+  assertMainUiSender(event);
   const cookies = await session.defaultSession.cookies.get({});
   const grouped = new Map();
 
@@ -1546,6 +2125,7 @@ ipcMain.handle('site-data-get', async () => {
 });
 
 ipcMain.handle('site-data-clear', async (event, domain) => {
+  assertMainUiSender(event);
   const cleanDomain = String(domain || '').replace(/^\./, '');
   if (!cleanDomain) return { success: false, message: 'missing_domain' };
 
@@ -1567,32 +2147,38 @@ ipcMain.handle('site-data-clear', async (event, domain) => {
   return { success: true };
 });
 
-ipcMain.handle('certificate-exceptions-get', () => {
+ipcMain.handle('certificate-exceptions-get', (event) => {
+  assertMainUiSender(event);
   return certificateExceptionsStore.get('exceptions') || {};
 });
 
 ipcMain.handle('certificate-exceptions-delete', (event, host) => {
+  assertMainUiSender(event);
   const exceptions = certificateExceptionsStore.get('exceptions') || {};
   delete exceptions[host];
   certificateExceptionsStore.set('exceptions', exceptions);
   return exceptions;
 });
 
-ipcMain.handle('certificate-exceptions-clear', () => {
+ipcMain.handle('certificate-exceptions-clear', (event) => {
+  assertMainUiSender(event);
   certificateExceptionsStore.set('exceptions', {});
   return {};
 });
 
-ipcMain.handle('downloads-get', () => {
+ipcMain.handle('downloads-get', (event) => {
+  assertMainUiSender(event);
   return downloadsStore.get('downloads') || [];
 });
 
-ipcMain.handle('downloads-clear', () => {
+ipcMain.handle('downloads-clear', (event) => {
+  assertMainUiSender(event);
   downloadsStore.set('downloads', []);
   return [];
 });
 
-ipcMain.handle('spaces-get', () => {
+ipcMain.handle('spaces-get', (event) => {
+  assertMainUiSender(event);
   const raw = spacesStore.get('spaces') || ['Genel'];
   let migrated = raw.map(s => {
     let obj = typeof s === 'string' ? { name: s, emoji: '🌐', color: '#000000' } : s;
@@ -1608,6 +2194,7 @@ ipcMain.handle('spaces-get', () => {
 });
 
 ipcMain.handle('spaces-add', (event, space) => {
+  assertMainUiSender(event);
   const raw = spacesStore.get('spaces') || ['Genel'];
   let spaces = raw.map(s => {
     let obj = typeof s === 'string' ? { name: s, emoji: '🌐', color: '#000000' } : s;
@@ -1626,6 +2213,7 @@ ipcMain.handle('spaces-add', (event, space) => {
 });
 
 ipcMain.handle('spaces-delete', (event, spaceName) => {
+  assertMainUiSender(event);
   const raw = spacesStore.get('spaces') || ['Genel'];
   let spaces = raw.map(s => {
     let obj = typeof s === 'string' ? { name: s, emoji: '🌐', color: '#000000' } : s;
@@ -1644,6 +2232,7 @@ ipcMain.handle('spaces-delete', (event, spaceName) => {
 });
 
 ipcMain.handle('spaces-update', (event, { oldName, space }) => {
+  assertMainUiSender(event);
   const raw = spacesStore.get('spaces') || ['Genel'];
   let spaces = raw.map(s => {
     let obj = typeof s === 'string' ? { name: s, emoji: '🌐', color: '#000000' } : s;
@@ -1665,6 +2254,7 @@ ipcMain.handle('spaces-update', (event, { oldName, space }) => {
 });
 
 ipcMain.on('find-in-page', (event, { text, options }) => {
+  if (ignoreUntrustedMainUiSender(event, 'find-in-page')) return;
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return;
   const activeTabId = activeTabs[win.id];
@@ -1674,6 +2264,7 @@ ipcMain.on('find-in-page', (event, { text, options }) => {
 });
 
 ipcMain.on('stop-find-in-page', (event, { action }) => {
+  if (ignoreUntrustedMainUiSender(event, 'stop-find-in-page')) return;
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return;
   const activeTabId = activeTabs[win.id];
@@ -1683,7 +2274,8 @@ ipcMain.on('stop-find-in-page', (event, { action }) => {
 });
 
 // Unified Settings Handlers
-ipcMain.handle('settings-get-all', () => {
+ipcMain.handle('settings-get-all', (event) => {
+  assertSettingsReadSender(event);
   return settingsStore.data;
 });
 
@@ -1743,13 +2335,17 @@ function applySetting(key, value) {
 }
 
 ipcMain.handle('settings-set', (event, { key, value }) => {
+  assertMainUiSender(event);
+  if (!isKnownSettingKey(key)) {
+    throw new Error(`Unknown setting key: ${key}`);
+  }
   settingsStore.set(key, value);
   applySetting(key, value);
   return value;
 });
 
 ipcMain.handle('settings-export', async (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
+  const win = assertMainUiSender(event);
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
     title: 'Ayarları Dışa Aktar',
     defaultPath: 'oslo-settings.json',
@@ -1769,7 +2365,7 @@ ipcMain.handle('settings-export', async (event) => {
 });
 
 ipcMain.handle('settings-import', async (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
+  const win = assertMainUiSender(event);
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
     title: 'Ayarları İçe Aktar',
     properties: ['openFile'],
@@ -1802,6 +2398,7 @@ ipcMain.handle('settings-import', async (event) => {
 });
 
 ipcMain.handle('settings-reset', async (event) => {
+  assertMainUiSender(event);
   try {
     for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
       settingsStore.set(key, value);
@@ -1815,7 +2412,7 @@ ipcMain.handle('settings-reset', async (event) => {
 });
 
 ipcMain.handle('newtab-wallpaper-select-file', async (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
+  const win = assertMainUiSender(event);
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
     title: 'Yeni Sekme Arka Planı Seç',
     properties: ['openFile'],
@@ -1833,36 +2430,108 @@ ipcMain.handle('newtab-wallpaper-select-file', async (event) => {
 });
 
 // Password Management IPC Handlers
-ipcMain.handle('passwords-get', () => {
-  return passwordsStore.get('passwords') || [];
+ipcMain.handle('passwords-get', (event) => {
+  assertMainUiSender(event);
+  return (passwordsStore.get('passwords') || []).map(toPublicCredential);
+});
+
+ipcMain.handle('passwords-audit', async (event) => {
+  assertMainUiSender(event);
+  const list = (passwordsStore.get('passwords') || []).map(toPublicCredential);
+  const passwordGroups = new Map();
+  list.forEach(item => {
+    const key = String(item.password || '');
+    if (!key) return;
+    if (!passwordGroups.has(key)) passwordGroups.set(key, []);
+    passwordGroups.get(key).push(item);
+  });
+
+  const issues = [];
+  let weakCount = 0;
+  let reusedCount = 0;
+  let breachedCount = 0;
+  let leakChecksCompleted = 0;
+  let leakChecksFailed = 0;
+  let breachServiceAvailable = true;
+
+  for (const item of list) {
+    const password = String(item.password || '');
+    const isWeak = isWeakPasswordValue(password);
+    const reuseGroup = passwordGroups.get(password) || [];
+    const isReused = !!password && reuseGroup.length > 1;
+    const breach = breachServiceAvailable
+      ? await checkPasswordBreach(password)
+      : { breached: false, count: 0, checked: false, error: 'breach_service_unavailable' };
+    if (breach.error) breachServiceAvailable = false;
+    const isBreached = !!breach.breached;
+
+    if (isWeak) weakCount += 1;
+    if (isReused) reusedCount += 1;
+    if (isBreached) breachedCount += 1;
+    if (breach.checked) leakChecksCompleted += 1;
+    else leakChecksFailed += 1;
+
+    if (isWeak || isReused || isBreached) {
+      issues.push({
+        id: item.id,
+        origin: item.origin,
+        username: item.username,
+        isWeak,
+        isReused,
+        isBreached,
+        breachCount: breach.count || 0,
+        strengthScore: scorePasswordStrength(password),
+        reuseCount: reuseGroup.length
+      });
+    }
+  }
+
+  return {
+    total: list.length,
+    weak: weakCount,
+    reused: reusedCount,
+    breached: breachedCount,
+    leakChecksCompleted,
+    leakChecksFailed,
+    issues
+  };
 });
 
 ipcMain.handle('passwords-save', (event, credential) => {
+  assertMainUiSender(event);
+  if (!credential || typeof credential !== 'object' || !credential.origin || !credential.username) {
+    throw new Error('Invalid credential payload');
+  }
   const list = passwordsStore.get('passwords') || [];
+  const protectedSecret = protectPassword(credential.password || '');
 
   // Check if same origin and username already exist to overwrite
   const idx = list.findIndex(p => p.origin === credential.origin && p.username === credential.username);
   if (idx !== -1) {
-    list[idx].password = credential.password;
+    list[idx] = {
+      ...list[idx],
+      ...protectedSecret
+    };
   } else {
     const newEntry = {
       id: 'pw_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
       origin: credential.origin,
       username: credential.username,
-      password: credential.password
+      ...protectedSecret
     };
     list.push(newEntry);
   }
 
   passwordsStore.set('passwords', list);
-  return list;
+  return list.map(toPublicCredential);
 });
 
 ipcMain.handle('passwords-delete', (event, id) => {
+  assertMainUiSender(event);
   let list = passwordsStore.get('passwords') || [];
   list = list.filter(p => p.id !== id);
   passwordsStore.set('passwords', list);
-  return list;
+  return list.map(toPublicCredential);
 });
 
 // CSV Parser Helper for importing passwords
@@ -1940,7 +2609,7 @@ function parsePasswordsCsv(content) {
 }
 
 ipcMain.handle('passwords-import', async (event) => {
-  const focusedWindow = BrowserWindow.getFocusedWindow();
+  const focusedWindow = assertMainUiSender(event);
   const { canceled, filePaths } = await dialog.showOpenDialog(focusedWindow, {
     title: 'Şifreleri İçe Aktar (CSV)',
     filters: [
@@ -1970,9 +2639,13 @@ ipcMain.handle('passwords-import', async (event) => {
 
     for (const item of imported) {
       const idx = list.findIndex(p => p.origin === item.origin && p.username === item.username);
+      const protectedSecret = protectPassword(item.password);
       if (idx !== -1) {
-        if (list[idx].password !== item.password) {
-          list[idx].password = item.password;
+        if (revealPassword(list[idx]) !== item.password) {
+          list[idx] = {
+            ...list[idx],
+            ...protectedSecret
+          };
           updatedCount++;
         }
       } else {
@@ -1980,7 +2653,7 @@ ipcMain.handle('passwords-import', async (event) => {
           id: 'pw_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9) + '_' + addedCount,
           origin: item.origin,
           username: item.username,
-          password: item.password
+          ...protectedSecret
         });
         addedCount++;
       }
@@ -1995,7 +2668,8 @@ ipcMain.handle('passwords-import', async (event) => {
 });
 
 ipcMain.handle('passwords-export', async (event) => {
-  const list = passwordsStore.get('passwords') || [];
+  assertMainUiSender(event);
+  const list = (passwordsStore.get('passwords') || []).map(toPublicCredential);
   if (list.length === 0) {
     return { success: false, message: 'no_passwords_to_export' };
   }
@@ -2043,34 +2717,45 @@ ipcMain.handle('passwords-export', async (event) => {
   }
 });
 
-ipcMain.handle('get-saved-credentials', (event, origin) => {
+ipcMain.handle('get-saved-credentials', (event) => {
+  assertKnownTabSender(event);
   if (!settingsStore.get('autofillEnabled')) return [];
+  const origin = getSenderWebOrigin(event);
+  if (!origin) return [];
   const list = passwordsStore.get('passwords') || [];
-  return list.filter(p => p.origin === origin);
+  return list.filter(p => p.origin === origin).map(toPublicCredential);
 });
 
 // Handle form submissions from preload.js
 ipcMain.on('login-form-submitted', (event, data) => {
-  console.log('[PasswordManager] login-form-submitted received:', JSON.stringify({ origin: data.origin, username: data.username, hasPassword: !!data.password }));
+  let tab = null;
+  try {
+    tab = assertKnownTabSender(event);
+  } catch (error) {
+    console.warn('[PasswordManager] Blocked login-form-submitted from unknown sender.');
+    return;
+  }
+
+  const origin = getSenderWebOrigin(event);
+  console.log('[PasswordManager] login-form-submitted received:', JSON.stringify({ origin, username: data?.username, hasPassword: !!data?.password }));
 
   if (!settingsStore.get('savePasswordsEnabled')) {
     console.log('[PasswordManager] savePasswordsEnabled is disabled, ignoring.');
     return;
   }
-  if (!data.origin || !data.username || !data.password) {
+  if (!origin || !data?.username || !data?.password) {
     console.log('[PasswordManager] Missing data fields, ignoring.');
     return;
   }
 
   const list = passwordsStore.get('passwords') || [];
-  const existing = list.find(p => p.origin === data.origin && p.username === data.username);
+  const existing = list.find(p => p.origin === origin && p.username === data.username);
 
   // If it doesn't exist or has a different password, prompt to save/update
-  if (!existing || existing.password !== data.password) {
+  if (!existing || revealPassword(existing) !== data.password) {
     console.log('[PasswordManager] Credential is new or updated, looking for window to show prompt...');
 
     // Try to find the tab by matching event.sender to tab.view.webContents
-    let tab = Object.values(tabs).find(t => t.view && t.view.webContents === event.sender);
     let win = null;
 
     if (tab && tab.windowId) {
@@ -2093,7 +2778,7 @@ ipcMain.on('login-form-submitted', (event, data) => {
     if (win) {
       console.log('[PasswordManager] Sending ui-password-save-prompt to window', win.id);
       sendToUI(win, 'ui-password-save-prompt', {
-        origin: data.origin,
+        origin,
         username: data.username,
         password: data.password,
         isUpdate: !!existing
@@ -2107,7 +2792,8 @@ ipcMain.on('login-form-submitted', (event, data) => {
 });
 
 // Legacy Handlers as fallback
-ipcMain.handle('adblock-get', () => {
+ipcMain.handle('adblock-get', (event) => {
+  assertMainUiSender(event);
   return adblock.isAdBlockEnabled();
 });
 ipcMain.on('adblock-get-sync', (event) => {
@@ -2120,32 +2806,40 @@ ipcMain.on('privacy-shields-get-sync', (event) => {
   };
 });
 ipcMain.handle('adblock-set', (event, enabled) => {
+  assertMainUiSender(event);
   adblock.setAdBlockEnabled(enabled);
   settingsStore.set('adblockEnabled', enabled);
   return enabled;
 });
-ipcMain.handle('adblock-get-count', () => {
+ipcMain.handle('adblock-get-count', (event) => {
+  assertMainUiSender(event);
   return settingsStore.get('blockedCount') || 0;
 });
-ipcMain.handle('httpsonly-get', () => {
+ipcMain.handle('httpsonly-get', (event) => {
+  assertMainUiSender(event);
   return settingsStore.get('httpsOnlyEnabled') || false;
 });
 ipcMain.handle('httpsonly-set', (event, enabled) => {
+  assertMainUiSender(event);
   settingsStore.set('httpsOnlyEnabled', enabled);
   adblock.setHttpsOnlyEnabled(enabled);
   return enabled;
 });
-ipcMain.handle('searchengine-get', () => {
+ipcMain.handle('searchengine-get', (event) => {
+  assertSettingsReadSender(event);
   return settingsStore.get('searchEngine');
 });
 ipcMain.handle('searchengine-set', (event, engine) => {
+  assertMainUiSender(event);
   settingsStore.set('searchEngine', engine);
   return engine;
 });
-ipcMain.handle('custom-css-get', () => {
+ipcMain.handle('custom-css-get', (event) => {
+  assertMainUiSender(event);
   return settingsStore.get('customCss') || '';
 });
 ipcMain.handle('custom-css-set', (event, css) => {
+  assertMainUiSender(event);
   settingsStore.set('customCss', css);
   if (settingsStore.get('customCssEnabled') !== false) {
     Object.values(tabs).forEach(tab => {
@@ -2159,6 +2853,7 @@ ipcMain.handle('custom-css-set', (event, css) => {
 
 // Enhanced Download Controls
 ipcMain.on('download-pause', (event, id) => {
+  if (ignoreUntrustedMainUiSender(event, 'download-pause')) return;
   const download = activeDownloads[id];
   const item = download && (download.item || download);
   if (item && !item.isPaused()) {
@@ -2178,6 +2873,7 @@ ipcMain.on('download-pause', (event, id) => {
   }
 });
 ipcMain.on('download-resume', (event, id) => {
+  if (ignoreUntrustedMainUiSender(event, 'download-resume')) return;
   const download = activeDownloads[id];
   const item = download && (download.item || download);
   if (item && item.isPaused()) {
@@ -2197,6 +2893,7 @@ ipcMain.on('download-resume', (event, id) => {
   }
 });
 ipcMain.on('download-cancel', (event, id) => {
+  if (ignoreUntrustedMainUiSender(event, 'download-cancel')) return;
   const download = activeDownloads[id];
   const item = download && (download.item || download);
   if (item) {
@@ -2241,6 +2938,9 @@ setInterval(() => {
 
 // App Startup
 app.whenReady().then(() => {
+  migratePasswordsToEncryptedStorage();
+  reconcilePendingUpdateState();
+
   // SSL Certificate error popup handling
   app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
     event.preventDefault();
@@ -2442,8 +3142,9 @@ app.on('before-quit', async (event) => {
     if (settingsStore.get('clearDownloadsOnExit')) {
       downloadsStore.set('downloads', []);
     }
+    const managedSessions = getManagedSessions(false);
     if (settingsStore.get('clearCacheOnExit')) {
-      await session.defaultSession.clearCache();
+      await Promise.all(managedSessions.map(profileSession => profileSession.clearCache()));
     }
     const storages = [];
     if (settingsStore.get('clearCookiesOnExit')) storages.push('cookies');
@@ -2451,7 +3152,7 @@ app.on('before-quit', async (event) => {
       storages.push('localstorage', 'indexdb', 'websql', 'filesystem', 'serviceworkers', 'cachestorage');
     }
     if (storages.length > 0) {
-      await session.defaultSession.clearStorageData({ storages });
+      await Promise.all(managedSessions.map(profileSession => profileSession.clearStorageData({ storages })));
     }
   } catch (error) {
     console.error('Failed to clear data on exit:', error);
@@ -2462,7 +3163,7 @@ app.on('before-quit', async (event) => {
 
 // Bookmarks Export Netscape HTML
 ipcMain.handle('bookmarks-export', async (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
+  const win = assertMainUiSender(event);
   const { filePath } = await dialog.showSaveDialog(win, {
     title: 'Yer İmlerini Dışa Aktar',
     defaultPath: 'bookmarks.html',
@@ -2495,12 +3196,12 @@ ipcMain.handle('bookmarks-export', async (event) => {
     items.forEach(b => {
       const spaceStr = ' '.repeat(indent);
       if (b.isFolder) {
-        html += `${spaceStr}<DT><H3 ADD_DATE="0" LAST_MODIFIED="0">${b.title}</H3>\n`;
+        html += `${spaceStr}<DT><H3 ADD_DATE="0" LAST_MODIFIED="0">${escapeHtmlText(b.title)}</H3>\n`;
         html += `${spaceStr}<DL><p>\n`;
         writeFolder(b.id, indent + 4);
         html += `${spaceStr}</DL><p>\n`;
       } else {
-        html += `${spaceStr}<DT><A HREF="${b.url}" ADD_DATE="0">${b.title}</A>\n`;
+        html += `${spaceStr}<DT><A HREF="${escapeHtmlText(b.url)}" ADD_DATE="0">${escapeHtmlText(b.title)}</A>\n`;
       }
     });
   }
@@ -2517,7 +3218,7 @@ ipcMain.handle('bookmarks-export', async (event) => {
 
 // Bookmarks Import Netscape HTML Parser
 ipcMain.handle('bookmarks-import', async (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
+  const win = assertMainUiSender(event);
   const { filePaths } = await dialog.showOpenDialog(win, {
     title: 'Yer İmlerini İçe Aktar',
     properties: ['openFile'],
@@ -2592,6 +3293,7 @@ ipcMain.handle('bookmarks-import', async (event) => {
 
 // Tab mute IPC
 ipcMain.on('tab-mute', (event, { tabId, mute }) => {
+  if (ignoreUntrustedMainUiSender(event, 'tab-mute')) return;
   const tab = tabs[tabId];
   if (tab && tab.view) {
     tab.view.webContents.setAudioMuted(mute);
@@ -2604,6 +3306,7 @@ ipcMain.on('tab-mute', (event, { tabId, mute }) => {
 
 // Permission response
 ipcMain.on('permission-response', (event, { id, decision }) => {
+  if (ignoreUntrustedMainUiSender(event, 'permission-response')) return;
   const req = pendingPermissionRequests[id];
   if (req) {
     req.callback(decision);
@@ -2616,7 +3319,8 @@ ipcMain.on('permission-response', (event, { id, decision }) => {
   }
 });
 
-ipcMain.handle('session-get', () => {
+ipcMain.handle('session-get', (event) => {
+  assertMainUiSender(event);
   if (!settingsStore.get('sessionRestoreEnabled')) {
     return { tabs: [], tabOrders: {} };
   }
@@ -2627,6 +3331,7 @@ ipcMain.handle('session-get', () => {
 });
 
 ipcMain.on('tab-set-pinned', (event, { tabId, isPinned }) => {
+  if (ignoreUntrustedMainUiSender(event, 'tab-set-pinned')) return;
   const tab = tabs[tabId];
   if (tab) {
     tab.isPinned = isPinned;
