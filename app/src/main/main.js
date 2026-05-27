@@ -521,22 +521,25 @@ function setupTabListeners(tab) {
     tab.canGoForward = wc.canGoForward();
 
     // Check favicon cache
+    let newFavicon = null;
     try {
       const domain = new URL(newUrl).hostname;
       if (domain) {
         const cache = faviconCacheStore.get('cache') || {};
         if (cache[domain]) {
-          tab.favicon = cache[domain];
+          newFavicon = cache[domain];
         }
       }
     } catch (e) { }
+
+    tab.favicon = newFavicon;
 
     sendToUI(getWin(), 'ui-tab-updated', {
       id: tabId,
       url: newUrl,
       canGoBack: tab.canGoBack,
       canGoForward: tab.canGoForward,
-      favicon: tab.favicon || null
+      favicon: newFavicon
     });
 
     // Add to history if not incognito
@@ -881,7 +884,8 @@ function createAndNotifyTab(url, isIncognito = false, space = 'Genel', winId = n
       isIncognito: tab.isIncognito,
       space: tab.space,
       isPinned: tab.isPinned,
-      zoomFactor: tab.zoomFactor
+      zoomFactor: tab.zoomFactor,
+      favicon: tab.favicon || null
     });
 
     if (tab.view && tab.zoomFactor !== 1.0) {
@@ -956,15 +960,7 @@ function closeTab(tabId) {
         selectTab(remainingAll[remainingAll.length - 1]);
       } else {
         activeTabs[win.id] = null;
-        const newTab = createTab(null, false, closedTabSpace, win.id);
-        sendToUI(win, 'ui-tab-created', {
-          id: newTab.id,
-          url: newTab.url,
-          title: newTab.title,
-          isLoading: newTab.isLoading,
-          isIncognito: newTab.isIncognito,
-          space: newTab.space
-        });
+        const newTab = createAndNotifyTab(null, false, closedTabSpace, win.id);
         selectTab(newTab.id);
       }
     }
