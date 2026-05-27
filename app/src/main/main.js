@@ -1269,7 +1269,7 @@ function setupDownloadListener(sessionInstance, isIncognito = false) {
 
     const lang = settingsStore.get('language') || 'tr';
     const title = lang === 'tr' ? 'Farklı Kaydet' : (lang === 'fr' ? 'Enregistrer sous' : 'Save As');
-    
+
     const downloadsDir = app.getPath('downloads');
     if (!fs.existsSync(downloadsDir)) {
       try {
@@ -2083,12 +2083,13 @@ ipcMain.handle('download-update', async (event, { url, version, sha256, checksum
   const { spawn } = require('child_process');
   const os = require('os');
   const path = require('path');
-  
+
   const win = BrowserWindow.fromWebContents(event.sender);
   const tempDir = os.tmpdir();
   const targetVersion = normalizeVersion(version);
   const installerPath = path.join(tempDir, `OSLO-Browser-v${targetVersion || 'update'}-Setup-${Date.now()}.exe`);
-  
+
+  let file;
   try {
     if (!isValidUpdateVersion(targetVersion)) {
       throw new Error('Geçersiz güncelleme sürümü.');
@@ -2109,31 +2110,31 @@ ipcMain.handle('download-update', async (event, { url, version, sha256, checksum
         'User-Agent': 'oslo-browser-updater'
       }
     });
-    
+
     if (!response.ok) {
       throw new Error(`Server returned status ${response.status}: ${response.statusText}`);
     }
-    
-    const file = fs.createWriteStream(installerPath);
+
+    file = fs.createWriteStream(installerPath);
     const reader = response.body.getReader();
     const totalSize = parseInt(response.headers.get('content-length'), 10) || 0;
     let downloadedSize = 0;
-    
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) {
         break;
       }
-      
+
       downloadedSize += value.length;
       const progress = totalSize > 0 ? Math.round((downloadedSize / totalSize) * 100) : 0;
       if (win && !win.isDestroyed()) {
         win.webContents.send('update-download-progress', { progress });
       }
-      
+
       file.write(Buffer.from(value));
     }
-    
+
     await new Promise((resolve) => file.end(resolve));
 
     const actualChecksum = crypto.createHash(algorithm).update(fs.readFileSync(installerPath)).digest(encoding);
@@ -2155,27 +2156,32 @@ ipcMain.handle('download-update', async (event, { url, version, sha256, checksum
       signature,
       startedAt: Date.now()
     });
-    
+
     // Spawn the installer detached from OSLO so it remains alive after OSLO exits
     const child = spawn(installerPath, [], {
       detached: true,
       stdio: 'ignore'
     });
     child.unref();
-    
+
     // Quit the app immediately so the installer can overwrite locked executable/resources
     setTimeout(() => {
       app.quit();
     }, 1500);
-    
+
     return { success: true };
   } catch (err) {
     console.error('Update download failed:', err);
     try {
+      if (file) {
+        file.destroy();
+      }
+    } catch (e) {}
+    try {
       if (fs.existsSync(installerPath)) {
         fs.unlinkSync(installerPath);
       }
-    } catch (e) {}
+    } catch (e) { }
     throw err;
   }
 });
