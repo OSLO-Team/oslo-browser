@@ -2338,7 +2338,8 @@ body.topbar-auto-hide .bookmarks-bar {
 
 .panel-folder-header.drag-over,
 .panel-item.drag-over,
-.bookmarks-bar-item.drag-over {
+.bookmarks-bar-item.drag-over,
+.panel-folder-children.drag-over {
   border: 1px dashed var(--accent-color) !important;
   background-color: var(--accent-soft) !important;
 }

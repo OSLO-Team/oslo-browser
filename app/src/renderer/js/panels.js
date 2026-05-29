@@ -78,8 +78,6 @@ export function initPanels() {
     bookmarksBarList.addEventListener('drop', (e) => {
       e.preventDefault();
       bookmarksBarList.classList.remove('drag-over');
-      
-      if (e.target !== bookmarksBarList && e.target.id !== 'bookmarks-bar-list') return;
 
       const draggedId = e.dataTransfer.getData('text/plain') || state.draggedBookmarkId;
       if (draggedId) {
@@ -517,6 +515,33 @@ function renderTree(parentId, containerEl, depth) {
       childrenContainer.style.marginTop = '4px';
       childrenContainer.style.marginBottom = '4px';
       
+      childrenContainer.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (state.draggedBookmarkId) {
+          if (state.draggedBookmarkId === b.id) return;
+          if (isDescendant(state.draggedBookmarkId, b.id)) return;
+          childrenContainer.classList.add('drag-over');
+        }
+      });
+      
+      childrenContainer.addEventListener('dragleave', (e) => {
+        e.stopPropagation();
+        childrenContainer.classList.remove('drag-over');
+      });
+      
+      childrenContainer.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        childrenContainer.classList.remove('drag-over');
+        
+        const draggedId = e.dataTransfer.getData('text/plain') || state.draggedBookmarkId;
+        if (!draggedId || draggedId === b.id) return;
+        if (isDescendant(draggedId, b.id)) return;
+        
+        moveBookmark(draggedId, b.id);
+      });
+      
       renderTree(b.id, childrenContainer, depth + 1);
       folderEl.appendChild(childrenContainer);
       
@@ -827,8 +852,6 @@ export function renderBookmarks() {
     bookmarksList.addEventListener('drop', (e) => {
       e.preventDefault();
       bookmarksList.classList.remove('drag-over');
-      
-      if (e.target !== bookmarksList && e.target.id !== 'bookmarks-list') return;
 
       const draggedId = e.dataTransfer.getData('text/plain') || state.draggedBookmarkId;
       if (draggedId) {
