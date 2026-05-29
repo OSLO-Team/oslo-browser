@@ -1,289 +1,21 @@
 // =============================================================================
-// Oslo Browser — Advanced Network Ad & Tracker Blocker
+// Oslo Browser — Ghostery-powered Ad & Tracker Blocker
 // =============================================================================
 
-// ─── BLOCKED DOMAINS ────────────────────────────────────────────────────────────
+const { app } = require('electron');
+const { ElectronBlocker, Request } = require('@ghostery/adblocker-electron');
+const fetch = require('cross-fetch');
+const path = require('path');
+const fs = require('fs');
+
+// ─── BLOCKED DOMAINS FOR VIDEO PROVIDER BYPASS ────────────────────────────────
 const blockedDomains = [
-  // EFF Cover Your Tracks test domains (blocked for sub-resources only)
-  'trackersimulator.org',
-  'eviltracker.net',
-  'do-not-tracker.org',
-  'firstpartysimulator.org',
-  'firstpartysimulator.net',
-
-  // Google Ads & Analytics
-  'doubleclick.net',
-  'google-analytics.com',
-  'googleadservices.com',
-  'googlesyndication.com',
-  'adservice.google.com',
-  'adservice.google.com.tr',
-  'pagead2.googlesyndication.com',
-  'tpc.googlesyndication.com',
-  'googleads.g.doubleclick.net',
-  'ad.doubleclick.net',
-  'static.doubleclick.net',
-  'cm.g.doubleclick.net',
-  'securepubads.g.doubleclick.net',
-  'pubads.g.doubleclick.net',
-  'partnerad.l.doubleclick.net',
-  'www.googletagmanager.com',
-  'www.googletagservices.com',
-  'googletagmanager.com',
-  'googletagservices.com',
-  'analytics.google.com',
-  'ssl.google-analytics.com',
-  'www.google-analytics.com',
-  'fundingchoicesmessages.google.com',
-  'contributor.google.com',
-  'imasdk.googleapis.com',
-  'clients1.google.com',
-  'clients2.google.com',
-  'clients3.google.com',
-  'clients4.google.com',
-  'clients5.google.com',
-  'clients6.google.com',
-  'id.google.com',
-  'partnerad.l.google.com',
-  'video-stats.video.google.com',
-
-  // YouTube Ad Servers
-  'ads.youtube.com',
-  'youtube.cleverads.vn',
-  'advertising.youtube.com',
-  'yt.moatads.com',
-
-  // Major Ad Networks
-  'adnxs.com',
-  'adtech.de',
-  'adform.net',
-  'adroll.com',
-  'advertising.com',
-  'criteo.com',
-  'criteo.net',
-  'taboola.com',
-  'cdn.taboola.com',
-  'trc.taboola.com',
-  'outbrain.com',
-  'widgets.outbrain.com',
-  'outbrainstatic.com',
-  'log.outbrain.com',
-  'popads.net',
-  'onclickads.net',
-  'exoclick.com',
-  'trafficjunky.com',
-  'trafficjunky.net',
-  'servedby-buysellads.com',
-  'buysellads.com',
-  'amazon-adsystem.com',
-  'carbonads.net',
-  'carbonads.com',
-  'srv.carbonads.net',
-  'openx.net',
-  'rubiconproject.com',
-  'fastlane.rubiconproject.com',
-  'optimized-by.rubiconproject.com',
-  'pubmatic.com',
-  'ads.pubmatic.com',
-  'casalemedia.com',
-  'yieldlab.net',
-  'indexww.com',
-  'adzerk.net',
-  'adzerk.com',
-  'addthis.com',
-  'sharethis.com',
-  'mgid.com',
-  'revcontent.com',
-  'zergnet.com',
-  'propellerads.com',
-  'adf.ly',
-  'admob.com',
-  'inmobi.com',
-  'mopub.com',
-  'unityads.unity3d.com',
-  'smaato.com',
-  'smaato.net',
-  'applovin.com',
-  'chartboost.com',
-  'ironsrc.com',
-  'vungle.com',
-  'adcolony.com',
-  'tapjoy.com',
-  'fyber.com',
-  'media.net',
-  'contextweb.com',
-  'yieldmo.com',
-  'sovrn.com',
-  'lijit.com',
-  'districtm.io',
-  'sharethrough.com',
-  'triplelift.com',
-  'smartadserver.com',
-  'ads.stickyadstv.com',
-  'appnexus.com',
-  '33across.com',
-  'emxdgt.com',
-  'spotxchange.com',
-  'spotx.tv',
-  'springserve.com',
-  'conversantmedia.com',
-
-  // Analytics, Telemetry & Tracking
-  'mixpanel.com',
-  'hotjar.com',
-  'amplitude.com',
-  'segment.io',
-  'segment.com',
-  'sentry.io',
-  'bugsnag.com',
-  'newrelic.com',
-  'nr-data.net',
-  'bam.nr-data.net',
-  'js-agent.newrelic.com',
-  'scorecardresearch.com',
-  'sb.scorecardresearch.com',
-  'b.scorecardresearch.com',
-  'quantserve.com',
-  'pixel.quantserve.com',
-  'quantcount.com',
-  'comscore.com',
-  'omtrdc.net',
-  'demdex.net',
-  'dpm.demdex.net',
-  'bluekai.com',
-  'tags.bluekai.com',
-  'stags.bluekai.com',
-  'krxd.net',
-  'beacon.krxd.net',
-  'cdn.krxd.net',
-  'usermatch.krxd.net',
-  'exelator.com',
-  'loadm.exelator.com',
-  'turn.com',
-  'ad.turn.com',
-  'mathtag.com',
-  'pixel.mathtag.com',
-  'rlcdn.com',
-  'agkn.com',
-  'nexac.com',
-  'eyeota.net',
-  'pippio.com',
-  'lotame.com',
-  'crwdcntrl.net',
-  'bkrtx.com',
-  'moatads.com',
-  'z.moatads.com',
-  'moatpixel.com',
-  'doubleverify.com',
-  'cdn.doubleverify.com',
-  'adsafeprotected.com',
-  'static.adsafeprotected.com',
-  'fw.adsafeprotected.com',
-  'integralads.com',
-  'grapeshot.co.uk',
-  'peer39.com',
-  'postrelease.com',
-
-  // Facebook/Meta tracking
-  'pixel.facebook.com',
-  'an.facebook.com',
-  'ad.atdmt.com',
-  'connect.facebook.net',
-
-  // Microsoft/Bing tracking
-  'bat.bing.com',
-  'c.bing.com',
-  'c.clarity.ms',
-  'clarity.ms',
-
-  // Twitter tracking
-  'analytics.twitter.com',
-  'ads-api.twitter.com',
-  't.co',
-
-  // LinkedIn tracking
-  'snap.licdn.com',
-  'px.ads.linkedin.com',
-
-  // Pinterest tracking
-  'ct.pinterest.com',
-  'trk.pinterest.com',
-
-  // TikTok tracking
-  'analytics.tiktok.com',
-  'analytics-sg.tiktok.com',
-
-  // Other common trackers
-  'adition.com',
-  'adsrvr.org',
-  'adswizz.com',
-  'atdmt.com',
-  'bidswitch.net',
-  'bizible.com',
-  'bounceexchange.com',
-  'branch.io',
-  'btttag.com',
-  'cookielaw.org',
-  'coremetrics.com',
-  'demandbase.com',
-  'dstillery.com',
-  'effectivemeasure.net',
-  'eloqua.com',
-  'everesttech.net',
-  'evidon.com',
-  'flashtalking.com',
-  'go-mpulse.net',
-  'iasds01.com',
-  'liadm.com',
-  'marketo.com',
-  'marketo.net',
-  'mookie1.com',
-  'myvisualiq.net',
-  'narrative.io',
-  'npttech.com',
-  'omnitagjs.com',
-  'onetag-sys.com',
-  'openxmarket.asia',
-  'pardot.com',
-  'rfihub.com',
-  'richrelevance.com',
-  'rkdms.com',
-  'samba.tv',
-  'serving-sys.com',
-  'simpli.fi',
-  'sitescout.com',
-  'tapad.com',
-  'teads.tv',
-  'tidaltv.com',
-  'tinypass.com',
-  'tremorhub.com',
-  'tribalfusion.com',
-  'typekit.net',
-  'undertone.com',
-  'yieldoptimizer.com',
-
-  // Anti-adblock
-  'pagefair.com',
-  'pagefair.net',
-  'blockadblock.com',
-  'fuckadblock.com',
-  'detectadblock.com',
-  'adblockanalytics.com',
-
-  // Pop-unders
-  'adcash.com',
-  'popcash.net',
-  'popunder.net',
-  'clickadu.com',
-  'hilltopads.net',
-  'richads.com',
-
-  // Fingerprinting services
-  'fingerprintjs.com',
-  'fpjs.io',
-  'permutive.com',
-  'arkoselabs.com',
-  'funcaptcha.com',
+  'doubleclick.net', 'googleadservices.com', 'googlesyndication.com', 'adservice.google.com',
+  'adsterra.com', 'adsterrasrv.com', 'adsterratrack.com', 'adsterracdn.com', 'adsterragate.com',
+  'monetag.com', 'monetizedlt.com', 'onclickperformance.com', 'realsrv.com',
+  'juicyads.com', 'juicyads.net', 'exdynsrv.com', 'exosrv.com',
+  'popads.net', 'onclickads.net', 'exoclick.com', 'trafficjunky.com', 'trafficjunky.net',
+  'adcash.com', 'popcash.net', 'popunder.net', 'clickadu.com', 'hilltopads.net', 'richads.com'
 ];
 
 // ─── TRACKER DOMAINS (for 3rd-party cookie/header stripping only) ──────────────
@@ -304,59 +36,6 @@ const trackerDomains = [
   'microsoft.com',
 ];
 
-// ─── YOUTUBE AD URL PATTERNS ────────────────────────────────────────────────────
-const youtubeAdPatterns = [
-  '/pagead/',
-  '/ptracking',
-  '/api/stats/ads',
-  '/api/stats/atr',
-  '/get_midroll_info',
-  '/log_interaction',
-  '/generate_204',
-  '/youtubei/v1/log_event',
-  '/youtubei/v1/player/ad_break',
-  'annotation_id=',
-  'cpmSequenceNum=',
-  'adsense_video_doc_id=',
-  'ad_type=',
-  'ad_logging_flag=',
-  '&ad_flags=',
-  'ctier=L',
-  'doubleclick.net/pagead/adview',
-  'doubleclick.net/pagead/id',
-  'googleads.g.doubleclick.net/pagead/ads',
-  'www.youtube.com/pagead/',
-  'www.youtube.com/ptracking',
-  'www.youtube.com/api/stats/ads',
-  'www.youtube.com/error_204',
-  's.youtube.com/api/stats',
-  's0.2mdn.net',
-  'www.youtube.com/csi_204',
-  'www.youtube.com/gen_204',
-  'www.youtube.com/pcs/activeview',
-  'www.youtube.com/pagead/lvz',
-  'www.youtube.com/get_midroll_info',
-];
-
-// ─── BLOCKED PATHS ──────────────────────────────────────────────────────────────
-const blockedPaths = [
-  '/ads/', '/ads.js', '/adpage', '/adframe', '/adserver', '/ad_', '/ad-', '/ad.',
-  'smartadserver', 'bannerads', 'track.js', 'tracking.js', 'tracker', 'reklam.js',
-  '/pagead/', '/ptracking', '/afs/ads', '/adview', '/adsid/', '/adlog', '/ad_event',
-  '/prebid', '/prebid-', '/gpt.js', '/pubads', '/gampad/', '/clkpage', '/sponsor',
-  '/sponsored-', '/pixel.', '/beacon.', '/collect?', '/__imp', '/imp?', '/impression',
-  '/clicktracker', '/clicktrack', '/conversiontracking', '/bid?', '/bidrequest',
-  '/rtb/', '/auctioneer', '/adsense', '/admanager', '/tag.min.js', '/tags.js',
-  '/gtm.js', '/analytics.js', '/gtag/js',
-];
-
-// ─── BLOCKED KEYWORDS ───────────────────────────────────────────────────────────
-const blockedKeywords = [
-  'telemetry', 'analytics', 'reklam', 'reklamlar', 'advert', 'advertisement',
-  'adserv', 'addelivery', 'adtech', 'adsystem', 'adnetwork', 'adexchange',
-  'popunder', 'clickunder',
-];
-
 // ─── STATE ──────────────────────────────────────────────────────────────────────
 let adBlockEnabled = true;
 let onBlockCallback = null;
@@ -370,6 +49,37 @@ let privacyOptions = {
   incognitoBlockThirdPartyCookies: true,
   httpsOnlyExceptions: ''
 };
+
+// Ghostery Blocker Instance & Initialization State
+let blockerInstance = null;
+let initializationPromise = null;
+
+function getBlockerCachePath() {
+  return path.join(app.getPath('userData'), 'adblock_cache.bin');
+}
+
+function initializeBlocker() {
+  if (initializationPromise) return initializationPromise;
+
+  initializationPromise = (async () => {
+    try {
+      const cachePath = getBlockerCachePath();
+      blockerInstance = await ElectronBlocker.fromPrebuiltAdsAndTracking(fetch, {
+        path: cachePath,
+        read: fs.promises.readFile,
+        write: fs.promises.writeFile,
+      });
+      console.log('[Adblock] Ghostery blocker successfully initialized!');
+    } catch (e) {
+      console.error('[Adblock] Failed to initialize Ghostery blocker:', e);
+      try {
+        blockerInstance = await ElectronBlocker.empty();
+      } catch (err) {}
+    }
+  })();
+
+  return initializationPromise;
+}
 
 // ─── DOMAIN MATCHING ────────────────────────────────────────────────────────────
 function isBlockedDomain(hostname) {
@@ -408,6 +118,42 @@ function isHttpsOnlyException(hostname) {
   return getHttpsOnlyExceptions().some(item => host === item || host.endsWith('.' + item));
 }
 
+function getBaseDomain(hostname) {
+  const parts = String(hostname || '').split('.');
+  if (parts.length <= 2) return hostname;
+  const ccSlds = ['com', 'co', 'gov', 'org', 'net', 'edu', 'mil'];
+  const sld = parts[parts.length - 2];
+  if (ccSlds.includes(sld) && parts.length >= 3) {
+    return parts.slice(-3).join('.');
+  }
+  return parts.slice(-2).join('.');
+}
+
+// Related Website Sets — domains that belong to the same organization and should
+// be treated as first-party for cookie and header purposes.
+const relatedDomainSets = [
+  // Google ecosystem
+  new Set([
+    'google.com', 'googleapis.com', 'gstatic.com', 'googleusercontent.com',
+    'googlevideo.com', 'youtube.com', 'ytimg.com', 'youtu.be',
+    'google.com.tr', 'google.co.uk', 'google.de', 'google.fr',
+    'google.es', 'google.it', 'google.co.jp', 'google.com.br',
+    'google.ca', 'google.com.au', 'google.co.in', 'google.ru',
+    'google.nl', 'google.pl', 'google.co.kr', 'google.com.mx',
+    'google.com.ar', 'google.co.za', 'google.com.eg',
+  ]),
+  // Microsoft ecosystem
+  new Set(['microsoft.com', 'microsoftonline.com', 'live.com', 'bing.com', 'msn.com', 'office.com']),
+];
+
+function getRelatedSetId(hostname) {
+  const base = getBaseDomain(hostname);
+  for (let i = 0; i < relatedDomainSets.length; i++) {
+    if (relatedDomainSets[i].has(base)) return i;
+  }
+  return -1;
+}
+
 function getRequestContext(details) {
   let requestHostname = '';
   let initiatorHostname = '';
@@ -419,50 +165,73 @@ function getRequestContext(details) {
     if (source) initiatorHostname = new URL(source).hostname.toLowerCase();
   } catch (e) { }
 
-  const isThirdParty = initiatorHostname
-    ? requestHostname !== initiatorHostname && !requestHostname.endsWith('.' + initiatorHostname)
-    : details.resourceType !== 'mainFrame';
+  const requestBase = getBaseDomain(requestHostname);
+  const initiatorBase = initiatorHostname ? getBaseDomain(initiatorHostname) : '';
+
+  let isThirdParty;
+  if (!initiatorBase) {
+    isThirdParty = details.resourceType !== 'mainFrame';
+  } else if (requestBase === initiatorBase) {
+    isThirdParty = false;
+  } else {
+    // Check related domain sets (e.g. google.com <-> googleapis.com)
+    const reqSetId = getRelatedSetId(requestHostname);
+    const initSetId = getRelatedSetId(initiatorHostname);
+    isThirdParty = reqSetId < 0 || reqSetId !== initSetId;
+  }
 
   return { requestHostname, initiatorHostname, isThirdParty };
 }
 
-// ─── YOUTUBE AD URL DETECTION ───────────────────────────────────────────────────
-function isYouTubeAdRequest(url, hostname) {
-  if (!hostname.includes('youtube.com') &&
-      !hostname.includes('ytimg.com') &&
-      !hostname.includes('googlevideo.com') &&
-      !hostname.includes('doubleclick.net') &&
-      !hostname.includes('googleapis.com') &&
-      !hostname.includes('2mdn.net') &&
-      !hostname.includes('googleads') &&
-      !hostname.includes('googlesyndication') &&
-      !hostname.includes('google-analytics') &&
-      !hostname.includes('googleadservices') &&
-      !hostname.includes('googletagmanager') &&
-      !hostname.includes('googletagservices') &&
-      !hostname.includes('imasdk')) {
-    return false;
+// ─── RESOURCE TYPE CONVERSION ──────────────────────────────────────────────────
+function convertResourceType(electronType) {
+  switch (electronType) {
+    case 'mainFrame': return 'document';
+    case 'subFrame': return 'subdocument';
+    case 'stylesheet': return 'stylesheet';
+    case 'script': return 'script';
+    case 'image': return 'image';
+    case 'font': return 'font';
+    case 'object': return 'object';
+    case 'xhr': return 'xmlhttprequest';
+    case 'ping': return 'ping';
+    case 'media': return 'media';
+    case 'websocket': return 'websocket';
+    case 'popup': return 'popup';
+    default: return 'other';
   }
+}
 
-  const lowerUrl = url.toLowerCase();
-  for (const pattern of youtubeAdPatterns) {
-    if (lowerUrl.includes(pattern.toLowerCase())) {
-      return true;
-    }
-  }
-
-  if (hostname.includes('googlevideo.com')) {
-    if (lowerUrl.includes('&ctier=l') || lowerUrl.includes('&oad=') ||
-        lowerUrl.includes('&ad_type=') || lowerUrl.includes('ctier=l')) {
-      return true;
-    }
-  }
-
-  return false;
+// ─── VIDEO PROVIDER DETECTION ──────────────────────────────────────────────────
+function isVideoProvider(host) {
+  if (!host) return false;
+  const lowerHost = host.toLowerCase();
+  return lowerHost.includes('closeload') || 
+         lowerHost.includes('vidmoly') ||
+         lowerHost.includes('mixdrop') || 
+         lowerHost.includes('upstream') ||
+         lowerHost.includes('fembed') || 
+         lowerHost.includes('ok.ru') ||
+         lowerHost.includes('vk.com') || 
+         lowerHost.includes('mail.ru') ||
+         lowerHost.includes('vimeo.com') || 
+         lowerHost.includes('dailymotion.com') ||
+         lowerHost.includes('rutube') ||
+         lowerHost.includes('rapidvideo') ||
+         lowerHost.includes('openload') ||
+         lowerHost.includes('streamtape') ||
+         lowerHost.includes('doodstream') ||
+         lowerHost.includes('dood.') ||
+         lowerHost.includes('voe.sx') ||
+         lowerHost.includes('voe-player') ||
+         lowerHost.includes('waaw') ||
+         lowerHost.includes('vidoza') ||
+         lowerHost.includes('supervideo') ||
+         lowerHost.includes('turbovid');
 }
 
 // ─── MAIN BLOCKING DECISION ─────────────────────────────────────────────────────
-function shouldBlock(url, resourceType) {
+function shouldBlock(url, resourceType, initiator, referrer) {
   try {
     const lowerUrl = url.toLowerCase();
 
@@ -478,62 +247,97 @@ function shouldBlock(url, resourceType) {
       return false;
     }
 
+    if (!adBlockEnabled) {
+      return false;
+    }
+
     const parsed = new URL(url);
     const hostname = parsed.hostname.toLowerCase();
     const pathname = parsed.pathname.toLowerCase();
     const fullUrl = parsed.href.toLowerCase();
 
-    if (privacyOptions.trackingProtectionLevel === 'strict' && (isTrackerDomain(hostname) || isBlockedDomain(hostname))) {
-      return true;
+    // Video provider checks:
+    // 1. If target hostname is a known video provider, allow the request entirely.
+    if (isVideoProvider(hostname)) {
+      return false;
     }
 
-    if (!adBlockEnabled) return false;
-
-    // 1. Check blocked domains
-    if (isBlockedDomain(hostname)) {
-      return true;
-    }
-
-    // 2. YouTube-specific ad request detection
-    if (isYouTubeAdRequest(url, hostname)) {
-      return true;
-    }
-
-    // 3. Path pattern matches
-    for (const pattern of blockedPaths) {
-      if (pathname.includes(pattern)) {
-        return true;
+    // Extract initiator/referrer hostname
+    let initiatorHost = '';
+    const source = initiator || referrer || '';
+    if (source) {
+      try {
+        initiatorHost = new URL(source).hostname.toLowerCase();
+      } catch (e) {
+        initiatorHost = String(source).replace(/^https?:\/\//, '').split('/')[0].toLowerCase();
       }
     }
 
-    // 4. Keyword matches
-    for (const keyword of blockedKeywords) {
-      if (hostname.includes(keyword) || pathname.includes(keyword)) {
+    // 2. If the request was initiated by a video provider, and it's NOT a popup:
+    if (resourceType !== 'popup' && isVideoProvider(initiatorHost)) {
+      // If the target hostname is in our explicit blocked domains list, block it.
+      if (isBlockedDomain(hostname)) {
         return true;
+      }
+      // Otherwise, allow the request (bypass all subsequent path & keyword checks).
+      return false;
+    }
+
+    const isGoogle = hostname === 'google.com' || hostname.endsWith('.google.com') || /(^|\.)google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(hostname);
+    const isYouTube = hostname === 'youtube.com' || hostname.endsWith('.youtube.com') || hostname === 'youtu.be' || hostname.endsWith('.youtu.be');
+
+    // Allow Google ecosystem requests if initiated by Google (fixes Google AI Mode/SGE)
+    if (source) {
+      const isGoogleInitiated = initiatorHost === 'google.com' ||
+        initiatorHost.endsWith('.google.com') ||
+        /(^|\.)google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(initiatorHost);
+
+      if (isGoogleInitiated) {
+        const isTargetGoogle = isGoogle ||
+          hostname.endsWith('.googleadservices.com') ||
+          hostname.endsWith('.googletagmanager.com') ||
+          hostname.endsWith('.google-analytics.com') ||
+          hostname.endsWith('.googlesyndication.com') ||
+          hostname.endsWith('.doubleclick.net') ||
+          /(^|\.)youtube\.[a-z]{2,3}(\.[a-z]{2})?$/.test(hostname) ||
+          hostname.endsWith('.googleapis.com') ||
+          hostname.endsWith('.gstatic.com') ||
+          hostname.endsWith('.ggpht.com') ||
+          hostname.endsWith('.googleusercontent.com');
+
+        if (isTargetGoogle) {
+          return false;
+        }
       }
     }
 
-    // 5. Block known ad image/video resource patterns
-    if (resourceType === 'image' || resourceType === 'media') {
-      if (fullUrl.includes('/adimage') || fullUrl.includes('/adcreative') ||
-          fullUrl.includes('/banner_ad') || fullUrl.includes('/sponsored_')) {
+    // EFF Cover Your Tracks simulator domains:
+    // If the hostname belongs to EFF test tracker domains, block them for sub-resources.
+    const isEffDomain = hostname === 'trackersimulator.org' || hostname.endsWith('.trackersimulator.org') ||
+      hostname === 'eviltracker.net' || hostname.endsWith('.eviltracker.net') ||
+      hostname === 'do-not-tracker.org' || hostname.endsWith('.do-not-tracker.org') ||
+      hostname === 'firstpartysimulator.org' || hostname.endsWith('.firstpartysimulator.org') ||
+      hostname === 'firstpartysimulator.net' || hostname.endsWith('.firstpartysimulator.net');
+
+    if (isEffDomain) {
+      return true;
+    }
+
+    // 3. Delegate to Ghostery Block Engine (if initialized)
+    if (blockerInstance) {
+      const request = Request.fromRawDetails({
+        url: url,
+        type: convertResourceType(resourceType),
+        sourceUrl: source || undefined
+      });
+      const matchResult = blockerInstance.match(request);
+      if (matchResult && matchResult.match) {
         return true;
       }
     }
 
   } catch (e) {
-    try {
-      const lowerUrl = url.toLowerCase();
-      if (lowerUrl.startsWith('oslo://') || lowerUrl.startsWith('file://') ||
-          lowerUrl.startsWith('chrome://') || lowerUrl.startsWith('devtools://')) {
-        return false;
-      }
-      for (const domain of blockedDomains) {
-        if (lowerUrl.includes(domain)) {
-          return true;
-        }
-      }
-    } catch (err) {}
+    console.error('[Adblock] Error in shouldBlock:', e);
   }
   return false;
 }
@@ -691,9 +495,12 @@ function setupResponseHeaderManipulation(sessionInstance, sessionKind = 'default
 
 // ─── SETUP ──────────────────────────────────────────────────────────────────────
 function setupAdBlocker(sessionInstance, sessionKind = 'default') {
+  // Trigger blocker initialization
+  initializeBlocker();
+
   // Layer 1: Network-level request blocking
   sessionInstance.webRequest.onBeforeRequest(
-    { urls: ['http://*/*', 'https://*/*'] },
+    { urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] },
     (details, callback) => {
       // 1. HTTPS-Only Redirect
       if (httpsOnlyEnabled && details.url.startsWith('http://')) {
@@ -707,7 +514,7 @@ function setupAdBlocker(sessionInstance, sessionKind = 'default') {
       }
 
       // 2. AdBlocking
-      if (shouldBlock(details.url, details.resourceType)) {
+      if (shouldBlock(details.url, details.resourceType, details.initiator, details.referrer)) {
         if (onBlockCallback) {
           onBlockCallback(details.url);
         }

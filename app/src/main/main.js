@@ -630,6 +630,11 @@ function setupViewListeners(tab, view, isSplitSide) {
   });
 
   wc.setWindowOpenHandler((details) => {
+    // Block popups targeting ad or tracker domains
+    if (adblock.isAdBlockEnabled() && adblock.shouldBlock(details.url, 'popup', undefined, details.referrer ? details.referrer.url : undefined)) {
+      return { action: 'deny' };
+    }
+
     if (details.features) {
       return {
         action: 'allow',
@@ -638,7 +643,8 @@ function setupViewListeners(tab, view, isSplitSide) {
           webPreferences: {
             preload: path.join(__dirname, '../preload.js'),
             contextIsolation: true,
-            nodeIntegration: false
+            nodeIntegration: false,
+            nodeIntegrationInSubFrames: true
           }
         }
       };
@@ -846,6 +852,7 @@ function createTab(url, isIncognito = false, space = 'Genel', winId = null, tabI
       preload: path.join(__dirname, '../preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      nodeIntegrationInSubFrames: true,
       session: viewSession,
       plugins: true
     }
@@ -1063,6 +1070,7 @@ function wakeTab(tabId) {
       preload: path.join(__dirname, '../preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      nodeIntegrationInSubFrames: true,
       session: viewSession,
       plugins: true
     }
@@ -1591,6 +1599,7 @@ ipcMain.on('tab-update-space', (event, { tabId, space }) => {
           preload: path.join(__dirname, '../preload.js'),
           contextIsolation: true,
           nodeIntegration: false,
+          nodeIntegrationInSubFrames: true,
           session: getSessionForSpace(space, false),
           plugins: true
         }
@@ -1757,6 +1766,7 @@ ipcMain.on('tab-toggle-split', (event, tabId) => {
         preload: path.join(__dirname, '../preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
+        nodeIntegrationInSubFrames: true,
         session: viewSession,
         plugins: true
       }
@@ -3474,6 +3484,7 @@ app.whenReady().then(() => {
 
   // Sync adblocker callback
   adblock.setOnBlockCallback((url) => {
+    console.log('[Adblock Blocked]', url);
     const current = settingsStore.get('blockedCount') || 0;
     settingsStore.set('blockedCount', current + 1);
     windows.forEach(win => {

@@ -27,12 +27,26 @@ const cosmeticFilterCSS = `
   [data-ad],
   [data-ad-slot],
   [data-ad-client],
-  [data-google-query-id],
   [data-ad-manager-id],
   ins.adsbygoogle,
   div[id^="div-gpt-ad"],
   iframe[src*="doubleclick.net"],
   iframe[src*="googlesyndication"],
+  iframe[src*="googleadservices.com"],
+  iframe[src*="googletagmanager.com"],
+  iframe[src*="adnxs.com"],
+  iframe[src*="taboola.com"],
+  iframe[src*="outbrain.com"],
+  iframe[src*="criteo"],
+  iframe[src*="amazon-adsystem"],
+  iframe[src*="popads.net"],
+  iframe[src*="exoclick.com"],
+  iframe[src*="buysellads.com"],
+  iframe[src*="adsterra.com"],
+  iframe[src*="monetag.com"],
+  iframe[src*="propellerads.com"],
+  iframe[src*="exdynsrv.com"],
+  iframe[src*="exosrv.com"],
   iframe[id*="google_ads"],
   iframe[name*="google_ads"],
   .adsbygoogle,
@@ -350,18 +364,29 @@ function runGenericAdBlocker() {
       document.querySelectorAll('iframe').forEach(iframe => {
         try {
           const src = (iframe.src || '').toLowerCase();
-          if (src.includes('doubleclick.net') || src.includes('googlesyndication.com') ||
+          
+          // Safeguard: Never delete iframes belonging to popular video hosting/player providers
+          const isVideoProvider = src.includes('youtube.com') || src.includes('youtu.be') ||
+            src.includes('vimeo.com') || src.includes('dailymotion.com') ||
+            src.includes('closeload') || src.includes('vidmoly') ||
+            src.includes('mixdrop') || src.includes('upstream') ||
+            src.includes('fembed') || src.includes('ok.ru') ||
+            src.includes('vk.com') || src.includes('mail.ru');
+            
+          if (!isVideoProvider && (
+            src.includes('doubleclick.net') || src.includes('googlesyndication.com') ||
             src.includes('googleadservices.com') || src.includes('adnxs.com') ||
             src.includes('taboola.com') || src.includes('outbrain.com') ||
             src.includes('criteo') || src.includes('amazon-adsystem') ||
             src.includes('popads.net') || src.includes('exoclick.com') ||
             src.includes('buysellads.com') || src.includes('/ads/') ||
-            src.includes('/pagead/')) {
+            src.includes('/pagead/')
+          )) {
             iframe.remove();
           }
         } catch (e) { }
       });
-      document.querySelectorAll('[data-ad], [data-ad-slot], [data-ad-client], [data-google-query-id]').forEach(el => el.remove());
+      document.querySelectorAll('[data-ad], [data-ad-slot], [data-ad-client]').forEach(el => el.remove());
       document.querySelectorAll('ins.adsbygoogle, .adsbygoogle').forEach(el => el.remove());
       document.querySelectorAll('div[id^="div-gpt-ad"]').forEach(el => el.remove());
     } catch (e) { }
@@ -373,6 +398,122 @@ function runGenericAdBlocker() {
   const observer = new MutationObserver(() => cleanAds());
   observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
   setInterval(cleanAds, 2000);
+}
+
+// ─── GENERIC VIDEO AD SKIPPER SCRIPT ────────────────────────────────────────────
+function runGenericVideoAdSkipper() {
+  'use strict';
+  if (window.__osloGenericVideoAdSkipperActive) return;
+  window.__osloGenericVideoAdSkipperActive = true;
+
+  function checkAndSkipVideoAds() {
+    try {
+      const videos = document.querySelectorAll('video');
+      videos.forEach(video => {
+        // 1. Check if the video URL indicates an ad
+        const src = (video.src || '').toLowerCase();
+        let isAd = false;
+        
+        const adKeywords = ['/ad/', '/ads/', 'preroll', 'pre-roll', 'midroll', 'postroll', 'vast', 'vpaid', 'videoad', 'video_ad', 'advertisement', 'ad_video', 'ad-video'];
+        
+        if (adKeywords.some(kw => src.includes(kw))) {
+          isAd = true;
+        }
+
+        // Check source tags
+        if (!isAd) {
+          const sources = video.querySelectorAll('source');
+          sources.forEach(source => {
+            const sourceSrc = (source.src || '').toLowerCase();
+            if (adKeywords.some(kw => sourceSrc.includes(kw))) {
+              isAd = true;
+            }
+          });
+        }
+
+        // Check if the video is short and there is a visible skip button on the page (indicating it's an ad)
+        if (!isAd) {
+          const duration = video.duration;
+          if (duration && isFinite(duration) && duration > 0 && duration < 60) {
+            const hasSkipButton = Array.from(document.querySelectorAll('button, div, span, a')).some(el => {
+              const text = (el.innerText || el.textContent || '').toLowerCase().trim();
+              return text === 'skip' || text === 'geç' || text === 'gec' || text.includes('skip ad') || text.includes('reklamı geç') || text.includes('reklami gec');
+            });
+            if (hasSkipButton) {
+              isAd = true;
+            }
+          }
+        }
+
+        // 2. Check for common ad player class names or structures on parent elements
+        if (!isAd) {
+          let parent = video.parentElement;
+          let depth = 0;
+          while (parent && depth < 5) {
+            const className = (parent.className || '');
+            const id = (parent.id || '');
+            const classAndId = (typeof className === 'string' ? className : '') + ' ' + (typeof id === 'string' ? id : '');
+            const lowerClassAndId = classAndId.toLowerCase();
+            
+            if (lowerClassAndId.includes('ad-playing') || 
+                lowerClassAndId.includes('ad-showing') || 
+                lowerClassAndId.includes('vast-ad') || 
+                lowerClassAndId.includes('video-ad') ||
+                lowerClassAndId.includes('fluid-ad') ||
+                lowerClassAndId.includes('jw-ad') ||
+                lowerClassAndId.includes('ima-ad')) {
+              isAd = true;
+              break;
+            }
+            parent = parent.parentElement;
+            depth++;
+          }
+        }
+
+        // 3. Skip if it is an ad
+        if (isAd) {
+          const duration = video.duration;
+          // Safeguard: Only skip if the video duration is known and is less than 2 minutes (120 seconds).
+          // Video ads are short (usually 5-30s), whereas movies/episodes are long (> 10-20 minutes).
+          // If duration is not yet loaded, we wait to avoid false-positive skipping of main video streams.
+          if (duration && isFinite(duration) && duration > 0 && duration < 120) {
+            if (video.currentTime < duration - 0.2) {
+              video.muted = true;
+              video.currentTime = duration - 0.1;
+              video.playbackRate = 16;
+              if (video.paused) {
+                video.play().catch(() => {});
+              }
+            }
+          }
+        }
+      });
+
+      // 4. Click generic skip buttons
+      const skipButtons = document.querySelectorAll('button, div, span, a');
+      const skipTextsExact = ['skip', 'geç', 'gec'];
+      const skipTextsSub = ['skip ad', 'reklamı geç', 'reklami gec', 'skip advertisement', 'ad skip', 'reklam geç', 'skip_ad'];
+      skipButtons.forEach(btn => {
+        try {
+          const text = (btn.innerText || btn.textContent || '').toLowerCase().trim();
+          const matchesExact = skipTextsExact.includes(text);
+          const matchesSub = skipTextsSub.some(st => text.includes(st));
+          if (matchesExact || matchesSub) {
+            btn.click();
+          }
+        } catch (e) {}
+      });
+
+      // 5. Remove overlay banner ads inside video player containers
+      document.querySelectorAll(
+        '.video-ad-overlay, .vast-blocker, .ad-overlay, .jw-preview, .jw-ad-ui, .fluid_ad_countdown, .fluid_video_wrapper_ad'
+      ).forEach(el => el.remove());
+
+    } catch (e) {}
+  }
+
+  // Run periodically
+  setInterval(checkAndSkipVideoAds, 500);
 }
 
 // ─── YOUTUBE AD SKIPPER SCRIPT ──────────────────────────────────────────────────
@@ -739,7 +880,9 @@ function runPasswordManager() {
 
 // ─── INITIAL LIFECYCLE EXECUTION ───────────────────────────────────────────────
 if (window.location.protocol === 'http:' || window.location.protocol === 'https:' || window.location.protocol === 'file:') {
-  runPasswordManager();
+  if (window === window.top) {
+    runPasswordManager();
+  }
 
   // Focus tracking for split screen
   window.addEventListener('focus', () => {
@@ -760,22 +903,34 @@ try {
   console.error('Failed to query ad blocker state:', e);
 }
 
-if ((adBlockEnabled || fingerprintProtectionEnabled) && (window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
+const hostname = window.location.hostname.toLowerCase();
+const bypassFingerprint = hostname === 'google.com' || hostname.endsWith('.google.com') ||
+  /(^|\.)google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(hostname) ||
+  hostname === 'recaptcha.net' || hostname.endsWith('.recaptcha.net') ||
+  hostname === 'gstatic.com' || hostname.endsWith('.gstatic.com');
+
+if (fingerprintProtectionEnabled && (window.location.protocol === 'http:' || window.location.protocol === 'https:') && !bypassFingerprint) {
   // 1. Anti-fingerprinting shield (runs immediately at document_start in main world)
   webFrame.executeJavaScript(`(${runAntiFingerprint.toString()})();`);
 }
 
 if (adBlockEnabled && (window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
-  // 2. Generic ad blocker script
-  webFrame.executeJavaScript(`(${runGenericAdBlocker.toString()})();`);
+  // 2. Generic ad blocker script (skip on Google domains to avoid breaking AI Mode/SGE)
+  const isGoogleDomain = /(^|\.)google(\.[a-z]{2,3}){1,2}$/.test(hostname) || hostname.endsWith('.gstatic.com');
+  const isYouTubeDomain = hostname.includes('youtube.com') || hostname.includes('youtu.be');
+  if (!isGoogleDomain) {
+    webFrame.executeJavaScript(`(${runGenericAdBlocker.toString()})();`);
+    if (!isYouTubeDomain) {
+      webFrame.executeJavaScript(`(${runGenericVideoAdSkipper.toString()})();`);
+    }
+    // 4. Cosmetic CSS injection (also skip on Google domains)
+    webFrame.insertCSS(cosmeticFilterCSS);
+  }
 
   // 3. YouTube ad skipper (if on YouTube)
   if (window.location.hostname.includes('youtube.com') || window.location.hostname.includes('youtu.be')) {
     webFrame.executeJavaScript(`(${runYouTubeAdSkipper.toString()})();`);
   }
-
-  // 4. Cosmetic CSS injection
-  webFrame.insertCSS(cosmeticFilterCSS);
 }
 
 // ─── CONTEXT BRIDGE EXPOSURE ───────────────────────────────────────────────────
