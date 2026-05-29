@@ -443,7 +443,45 @@ function applyLocalCustomCss(css, forcePreview = false) {
     styleEl.id = 'user-custom-css';
     document.head.appendChild(styleEl);
   }
-  styleEl.textContent = (appearanceSettings.customCssEnabled || forcePreview) ? css : '';
+  const textarea = document.getElementById('settings-custom-css');
+  const currentCss = textarea ? textarea.value : css;
+  styleEl.textContent = (appearanceSettings.customCssEnabled || forcePreview) ? currentCss : '';
+}
+
+function showCustomCssStatus(messageKey) {
+  const statusEl = document.getElementById('settings-custom-css-status');
+  if (!statusEl) return;
+
+  const msgs = {
+    tr: {
+      preview: 'Geçici önizleme uygulandı. Kalıcı olması için Kaydet butonuna basın.',
+      save: 'Özel CSS kuralları başarıyla kaydedildi ve etkinleştirildi.',
+      reset: 'Özel CSS kuralları sıfırlandı.'
+    },
+    en: {
+      preview: 'Temporary preview applied. Click Save to make it permanent.',
+      save: 'Custom CSS rules saved and activated successfully.',
+      reset: 'Custom CSS rules have been reset.'
+    },
+    fr: {
+      preview: 'Aperçu temporaire appliqué. Cliquez sur Enregistrer pour le rendre permanent.',
+      save: 'Les règles CSS personnalisées ont été enregistrées et activées.',
+      reset: 'Les règles CSS personnalisées ont été réinitialisées.'
+    }
+  };
+
+  const lang = state.currentLang || 'en';
+  const text = (msgs[lang] || msgs['en'])[messageKey];
+  statusEl.textContent = text;
+  statusEl.style.display = 'block';
+
+  if (statusEl.timeoutId) {
+    clearTimeout(statusEl.timeoutId);
+  }
+
+  statusEl.timeoutId = setTimeout(() => {
+    statusEl.style.display = 'none';
+  }, 4000);
 }
 
 function isWeakPassword(password) {
@@ -918,18 +956,21 @@ export function initSettings() {
 
   document.getElementById('settings-custom-css-preview')?.addEventListener('click', () => {
     applyLocalCustomCss(settingsCustomCss?.value || '', true);
+    showCustomCssStatus('preview');
   });
 
   document.getElementById('settings-custom-css-save')?.addEventListener('click', () => {
     const css = settingsCustomCss?.value || '';
     window.oslo.setSetting('customCss', css);
     window.oslo.setSetting('customCssEnabled', true);
+    showCustomCssStatus('save');
   });
 
   document.getElementById('settings-custom-css-reset')?.addEventListener('click', () => {
     if (settingsCustomCss) settingsCustomCss.value = '';
     window.oslo.setSetting('customCss', '');
     applyLocalCustomCss('', true);
+    showCustomCssStatus('reset');
   });
 
   if (settingsLanguage) {
