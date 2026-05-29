@@ -399,8 +399,16 @@ body.sidebar-auto-hide #sidebar:not(:hover) > * {
   pointer-events: none;
 }
 
-body.sidebar-auto-hide #sidebar:hover {
+body.sidebar-auto-hide #sidebar > * {
+  transition: opacity 0.25s ease-in-out;
+}
+
+body.sidebar-auto-hide #sidebar.expanded:hover {
   width: var(--sidebar-width-expanded);
+}
+
+body.sidebar-auto-hide #sidebar.collapsed:hover {
+  width: var(--sidebar-width-collapsed);
 }
 
 body.ui-font-small {
