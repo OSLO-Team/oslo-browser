@@ -1503,8 +1503,8 @@ export function loadAboutTabSystemInfo() {
     const valV8 = document.getElementById('sys-val-v8');
     const valUseragent = document.getElementById('sys-val-useragent');
     
-    if (versionDisplay) versionDisplay.textContent = info.appVersion || '1.0.0-alpha.6';
-    if (versionDisplayMain) versionDisplayMain.textContent = info.appVersion || '1.0.0-alpha.6';
+    if (versionDisplay) versionDisplay.textContent = info.appVersion || '1.0.0-alpha.7';
+    if (versionDisplayMain) versionDisplayMain.textContent = info.appVersion || '1.0.0-alpha.7';
     if (valElectron) valElectron.textContent = info.electron || '-';
     if (valChrome) valChrome.textContent = info.chrome || '-';
     if (valNode) valNode.textContent = info.node || '-';
