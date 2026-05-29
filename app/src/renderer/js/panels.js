@@ -383,9 +383,12 @@ function setupDragDropListeners(el, item) {
     e.stopPropagation();
     el.classList.remove('dragging');
     state.draggedBookmarkId = null;
-    document.querySelectorAll('.panel-folder-header, .panel-item, .panel-content, .bookmarks-bar-item, .bookmarks-bar-list').forEach(el => {
+    document.querySelectorAll('.panel-folder-header, .panel-item, .panel-content, .bookmarks-bar-item, .bookmarks-bar-list, .panel-folder-children, .bookmarks-bar-dropdown-item').forEach(el => {
       el.classList.remove('drag-over');
     });
+    if (typeof closeAllBookmarksDropdowns === 'function') {
+      closeAllBookmarksDropdowns();
+    }
   });
   
   el.addEventListener('dragover', (e) => {
@@ -635,6 +638,7 @@ function showBookmarksDropdown(folderId, triggerEl, isSubmenu = false) {
   items.forEach(b => {
     const itemEl = document.createElement('div');
     itemEl.className = 'bookmarks-bar-dropdown-item';
+    itemEl.setAttribute('draggable', 'true');
     
     if (b.isFolder) {
       itemEl.innerHTML = `
@@ -726,6 +730,7 @@ function showBookmarksDropdown(folderId, triggerEl, isSubmenu = false) {
       });
     }
     
+    setupDragDropListeners(itemEl, b);
     dropdown.appendChild(itemEl);
   });
   
