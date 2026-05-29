@@ -59,7 +59,8 @@ const privacyCheckboxControls = {
   incognitoForgetDownloads: 'settings-incognito-forget-downloads',
   incognitoBlockThirdPartyCookies: 'settings-incognito-block-third-party-cookies',
   sleepTabsEnabled: 'settings-sleep-tabs-checkbox',
-  downloadPromptEnabled: 'settings-download-prompt-checkbox'
+  downloadPromptEnabled: 'settings-download-prompt-checkbox',
+  telemetryEnabled: 'settings-telemetry-checkbox'
 };
 
 const privacySelectControls = {

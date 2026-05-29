@@ -50,7 +50,7 @@ const DEFAULT_SETTINGS = {
   homePageUrl: '',
   bookmarksBarEnabled: false,
   historyLimit: 2000,
-  telemetryEnabled: true,
+  telemetryEnabled: false,
   dnsOverHttpsEnabled: false,
   dnsOverHttpsProvider: 'cloudflare',
   dnsOverHttpsCustomProvider: '',
@@ -80,7 +80,8 @@ const DEFAULT_SETTINGS = {
   autofillEnabled: true,
   sleepTabsEnabled: true,
   sleepTabsTimeout: 15,
-  downloadPromptEnabled: false
+  downloadPromptEnabled: false,
+  hardwareAutoOptimized: false
 };
 
 const settingsStore = new Store('settings', DEFAULT_SETTINGS);
@@ -3413,9 +3414,60 @@ setInterval(() => {
   });
 }, 30000); // Check every 30 seconds
 
+function optimizePerformanceForHardware() {
+  const os = require('os');
+  const totalMemoryGB = os.totalmem() / (1024 * 1024 * 1024);
+  const cpuCores = os.cpus().length;
+  
+  console.log(`[HardwareOptimizer] CPU Cores: ${cpuCores}, Total Memory: ${totalMemoryGB.toFixed(2)} GB`);
+  
+  if (settingsStore.get('hardwareAutoOptimized')) {
+    console.log('[HardwareOptimizer] System has already been optimized for hardware.');
+    return;
+  }
+  
+  // Criteria: RAM <= 8.5 GB or CPU cores <= 4
+  const isOldHardware = totalMemoryGB <= 8.5 || cpuCores <= 4;
+  
+  if (isOldHardware) {
+    console.log('[HardwareOptimizer] Low-end/old hardware detected! Auto-optimizing performance settings...');
+    
+    // Enable performance optimizations
+    settingsStore.set('sleepTabsEnabled', true);
+    settingsStore.set('sleepTabsTimeout', 15);
+    settingsStore.set('reduceMotion', true);
+    settingsStore.set('transparencyEnabled', false);
+    
+    // Log telemetry event if enabled
+    if (settingsStore.get('telemetryEnabled')) {
+      try {
+        const events = telemetryStore.get('events') || [];
+        events.push({
+          timestamp: Date.now(),
+          event: 'hardware-optimize',
+          details: {
+            ramGB: totalMemoryGB,
+            cores: cpuCores,
+            message: 'Performance settings optimized for low-end hardware.'
+          }
+        });
+        if (events.length > 50) events.splice(0, events.length - 50);
+        telemetryStore.set('events', events);
+      } catch (e) {
+        console.error('Failed to log hardware optimization telemetry event:', e);
+      }
+    }
+  } else {
+    console.log('[HardwareOptimizer] Modern hardware detected. Skipping optimizations.');
+  }
+  
+  settingsStore.set('hardwareAutoOptimized', true);
+}
+
 // App Startup
 app.whenReady().then(() => {
   migratePasswordsToEncryptedStorage();
+  optimizePerformanceForHardware();
   reconcilePendingUpdateState();
 
   // SSL Certificate error popup handling

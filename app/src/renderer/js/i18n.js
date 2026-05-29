@@ -358,7 +358,15 @@ export const translations = {
     'timeout-1h': '1 Saat',
     'timeout-2h': '2 Saat',
     'download-settings': 'İndirmeler',
-    'download-prompt-desc': 'Her indirmede dosyanın nereye kaydedileceğini sor'
+    'download-prompt-desc': 'Her indirmede dosyanın nereye kaydedileceğini sor',
+    'general-settings-desc': 'Arama motoru, dil ve başlangıç tercihlerini yapılandırın.',
+    'search-engine-desc': 'Adres çubuğundan arama yaparken kullanılacak motorunu seçin.',
+    'language-desc': 'Tarayıcı arayüz dilini değiştirin.',
+    'startup-behavior': 'Başlangıç Davranışı',
+    'wallpaper-desc': "Yeni sekme sayfasında gösterilecek arka plan resmi URL'si.",
+    'css-desc': 'Tarayıcı arayüzüne kendi CSS kurallarınızı ekleyin.',
+    'about-desc': 'Sürüm bilgileri, güncellemeler ve tanılama araçları.',
+    'passwords-export-empty': 'Dışarı aktarılacak şifre bulunmuyor.'
   },
   en: {
     'new-tab': 'New Tab',
@@ -714,7 +722,15 @@ export const translations = {
     'timeout-1h': '1 Hour',
     'timeout-2h': '2 Hours',
     'download-settings': 'Downloads',
-    'download-prompt-desc': 'Ask where to save each file before downloading'
+    'download-prompt-desc': 'Ask where to save each file before downloading',
+    'general-settings-desc': 'Configure search engine, language, and startup preferences.',
+    'search-engine-desc': 'Choose the engine to be used when searching from the address bar.',
+    'language-desc': 'Change the browser interface language.',
+    'startup-behavior': 'Startup Behavior',
+    'wallpaper-desc': 'Background image URL to be displayed on the new tab page.',
+    'css-desc': 'Add your own CSS rules to the browser interface.',
+    'about-desc': 'Version information, updates, and diagnostic tools.',
+    'passwords-export-empty': 'There are no passwords to export.'
   },
   fr: {
     'new-tab': 'Nouvel Onglet',
@@ -1070,7 +1086,15 @@ export const translations = {
     'timeout-1h': '1 Heure',
     'timeout-2h': '2 Heures',
     'download-settings': 'Téléchargements',
-    'download-prompt-desc': 'Demander où enregistrer chaque fichier avant le téléchargement'
+    'download-prompt-desc': 'Demander où enregistrer chaque fichier avant le téléchargement',
+    'general-settings-desc': 'Configurez le moteur de recherche, la langue et les préférences de démarrage.',
+    'search-engine-desc': 'Choisissez le moteur à utiliser lors de la recherche depuis la barre d\'adresse.',
+    'language-desc': 'Modifier la langue de l\'interface du navigateur.',
+    'startup-behavior': 'Comportement au démarrage',
+    'wallpaper-desc': 'URL de l\'image de fond à afficher sur la page de nouvel onglet.',
+    'css-desc': 'Ajoutez vos propres règles CSS à l\'interface du navigateur.',
+    'about-desc': 'Informations sur la version, mises à jour et outils de diagnostic.',
+    'passwords-export-empty': 'Il n\'y a pas de mots de passe à exporter.'
   }
 };
 
