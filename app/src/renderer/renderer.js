@@ -123,6 +123,7 @@ export function sendBounds() {
   const isHistoryOpen = document.getElementById('history-panel')?.classList.contains('open');
   const isSettingsOpen = document.getElementById('settings-overlay')?.classList.contains('open');
   const isDownloadsOpen = document.getElementById('downloads-overlay')?.classList.contains('open');
+  const isBookmarksSuccessModalOpen = !!document.querySelector('.bookmarks-success-modal-overlay.open');
   if (
     isClearHistoryOpen ||
     isClearBrowserDataOpen ||
@@ -141,7 +142,8 @@ export function sendBounds() {
     isBookmarksBarContextMenuOpen ||
     isHistoryOpen ||
     isSettingsOpen ||
-    isDownloadsOpen
+    isDownloadsOpen ||
+    isBookmarksSuccessModalOpen
   ) {
     window.oslo.updateBounds({ x: 0, y: 0, width: 0, height: 0 });
     return;

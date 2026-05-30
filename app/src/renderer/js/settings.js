@@ -1149,10 +1149,7 @@ export function initSettings() {
           renderBookmarks();
           renderBookmarksBar();
 
-          const title = translations[state.currentLang]['import-bookmarks'] || 'Yer İmlerini İçe Aktar';
-          let msg = translations[state.currentLang]['bookmarks-import-success'] || 'Yer imleri başarıyla içe aktarıldı!\n\n📂 Eklenen Klasör: {folders}\n🔗 Eklenen Bağlantı: {links}';
-          msg = msg.replace('{folders}', res.foldersAdded).replace('{links}', res.linksAdded);
-          showCustomAlert(title, msg);
+          showBookmarksImportExportModal('import', res);
         }
       }).catch((err) => {
         console.error(err);
@@ -1164,10 +1161,7 @@ export function initSettings() {
     exportBookmarksBtn.addEventListener('click', () => {
       window.oslo.exportBookmarks().then((res) => {
         if (res) {
-          const title = translations[state.currentLang]['export-bookmarks'] || 'Yer İmlerini Dışa Aktar';
-          let msg = translations[state.currentLang]['bookmarks-export-success'] || 'Yer imleri başarıyla dışa aktarıldı!\n\n📂 Aktarılan Klasör: {folders}\n🔗 Aktarılan Bağlantı: {links}';
-          msg = msg.replace('{folders}', res.totalFolders).replace('{links}', res.totalLinks);
-          showCustomAlert(title, msg);
+          showBookmarksImportExportModal('export', res);
         }
       }).catch((err) => {
         console.error(err);
@@ -1655,5 +1649,103 @@ function showCustomConfirm(title, message) {
     overlay.querySelector('.modal-close-btn').addEventListener('click', () => cleanup(false));
     overlay.querySelector('.btn-cancel').addEventListener('click', () => cleanup(false));
     overlay.querySelector('.btn-confirm').addEventListener('click', () => cleanup(true));
+  });
+}
+
+function showBookmarksImportExportModal(type, res) {
+  return new Promise((resolve) => {
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'bookmarks-success-modal-overlay';
+    
+    const lang = state.currentLang || 'en';
+    const isImport = type === 'import';
+    
+    const locales = {
+      tr: {
+        importTitle: 'İçe Aktarma Başarılı!',
+        exportTitle: 'Dışa Aktarma Başarılı!',
+        importDesc: 'Yer imleriniz başarıyla tarayıcınıza aktarıldı ve kullanıma hazır.',
+        exportDesc: 'Yer imleriniz başarıyla dışa aktarıldı.',
+        foldersLabel: isImport ? 'Eklenen Klasörler' : 'Aktarılan Klasörler',
+        linksLabel: isImport ? 'Eklenen Bağlantılar' : 'Aktarılan Bağlantılar',
+        btnText: 'Harika!',
+      },
+      en: {
+        importTitle: 'Import Successful!',
+        exportTitle: 'Export Successful!',
+        importDesc: 'Your bookmarks have been successfully imported and are ready to use.',
+        exportDesc: 'Your bookmarks have been successfully exported.',
+        foldersLabel: isImport ? 'Folders Added' : 'Folders Exported',
+        linksLabel: isImport ? 'Links Added' : 'Links Exported',
+        btnText: 'Awesome!',
+      },
+      fr: {
+        importTitle: 'Importation Réussie !',
+        exportTitle: 'Exportation Réussie !',
+        importDesc: 'Vos favoris ont été importés avec succès et sont prêts à être utilisés.',
+        exportDesc: 'Vos favoris ont été exportés avec succès.',
+        foldersLabel: isImport ? 'Dossiers Ajoutés' : 'Dossiers Exportés',
+        linksLabel: isImport ? 'Liens Ajoutés' : 'Liens Exportés',
+        btnText: 'Super !',
+      }
+    };
+    
+    const text = locales[lang] || locales.en;
+    
+    const foldersCount = isImport ? (res.foldersAdded || 0) : (res.totalFolders || 0);
+    const linksCount = isImport ? (res.linksAdded || 0) : (res.totalLinks || 0);
+    
+    modalOverlay.innerHTML = `
+      <div class="bookmarks-success-card">
+        <div class="bookmarks-success-icon-container">
+          <div class="bookmarks-success-icon-glow"></div>
+          <svg viewBox="0 0 24 24" width="38" height="38" fill="var(--accent-color)">
+            <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+          </svg>
+        </div>
+        <h3 class="bookmarks-success-title">${isImport ? text.importTitle : text.exportTitle}</h3>
+        <p class="bookmarks-success-desc">${isImport ? text.importDesc : text.exportDesc}</p>
+        <div class="bookmarks-stats-grid">
+          <div class="bookmarks-stat-card">
+            <div class="bookmarks-stat-icon">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+              </svg>
+            </div>
+            <div class="bookmarks-stat-value" id="folders-value">${foldersCount}</div>
+            <div class="bookmarks-stat-label">${text.foldersLabel}</div>
+          </div>
+          <div class="bookmarks-stat-card">
+            <div class="bookmarks-stat-icon">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
+              </svg>
+            </div>
+            <div class="bookmarks-stat-value" id="links-value">${linksCount}</div>
+            <div class="bookmarks-stat-label">${text.linksLabel}</div>
+          </div>
+        </div>
+        <button class="bookmarks-success-btn">${text.btnText}</button>
+      </div>
+    `;
+    
+    document.body.appendChild(modalOverlay);
+    
+    window.dispatchEvent(new Event('resize'));
+    
+    setTimeout(() => {
+      modalOverlay.classList.add('open');
+    }, 10);
+    
+    const close = () => {
+      modalOverlay.classList.remove('open');
+      setTimeout(() => {
+        modalOverlay.remove();
+        window.dispatchEvent(new Event('resize'));
+        resolve();
+      }, 300);
+    };
+    
+    modalOverlay.querySelector('.bookmarks-success-btn').addEventListener('click', close);
   });
 }
