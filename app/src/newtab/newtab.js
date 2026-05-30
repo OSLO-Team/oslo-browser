@@ -455,7 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ecosia: 'https://www.ecosia.org/search?q=',
       startpage: 'https://www.startpage.com/do/dsearch?query='
     };
-    const searchUrl = searchEngines[engine] || searchEngines.google;
+    const searchUrl = searchEngines[engine] || searchEngines.duckduckgo;
     return searchUrl + encodeURIComponent(query);
   }
 

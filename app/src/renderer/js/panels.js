@@ -17,6 +17,18 @@ function escapeAttribute(value) {
   return escapeHtml(value).replace(/`/g, '&#96;');
 }
 
+function getBookmarkFaviconUrl(bookmark) {
+  if (bookmark?.favicon) return bookmark.favicon;
+
+  let domain = '';
+  try {
+    domain = new URL(bookmark.url).hostname;
+  } catch (e) {
+    domain = bookmark.url || '';
+  }
+  return `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(domain)}`;
+}
+
 export function initPanels() {
   const bookmarksSearchInput = document.getElementById('bookmarks-search-input');
   if (bookmarksSearchInput) {
@@ -227,6 +239,7 @@ export function initPanels() {
 
 // Opens the folder creation modal instead of prompt()
 export function addFolder(parentFolderId = null) {
+  closeAllBookmarksDropdowns();
   state._pendingFolderParentId = parentFolderId;
   const folderCreateModal = document.getElementById('folder-create-modal');
   const folderCreateNameInput = document.getElementById('folder-create-name');
@@ -554,13 +567,7 @@ function renderTree(parentId, containerEl, depth) {
       item.className = 'panel-item';
       item.setAttribute('draggable', 'true');
       
-      let domain = '';
-      try {
-        domain = new URL(b.url).hostname;
-      } catch (e) {
-        domain = b.url;
-      }
-      const faviconUrl = `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(domain)}`;
+      const faviconUrl = getBookmarkFaviconUrl(b);
       
       item.innerHTML = `
         <img class="panel-item-favicon" src="${escapeAttribute(faviconUrl)}" onerror="this.src='../../assets/logo.svg'">
@@ -611,7 +618,12 @@ function renderTree(parentId, containerEl, depth) {
 
 function showBookmarksDropdown(folderId, triggerEl, isSubmenu = false) {
   if (!isSubmenu) {
+    const wasActive = triggerEl.classList.contains('dropdown-active');
     closeAllBookmarksDropdowns();
+    if (wasActive) {
+      return null;
+    }
+    triggerEl.classList.add('dropdown-active');
   }
   
   const dropdown = document.createElement('div');
@@ -700,13 +712,7 @@ function showBookmarksDropdown(folderId, triggerEl, isSubmenu = false) {
         }, 150);
       });
     } else {
-      let domain = '';
-      try {
-        domain = new URL(b.url).hostname;
-      } catch (e) {
-        domain = b.url;
-      }
-      const faviconUrl = `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(domain)}`;
+      const faviconUrl = getBookmarkFaviconUrl(b);
       
       itemEl.innerHTML = `
         <img class="bookmarks-bar-favicon" src="${escapeAttribute(faviconUrl)}" onerror="this.src='../../assets/logo.svg'" style="margin-right: 4px;">
@@ -750,8 +756,11 @@ export function closeAllBookmarksDropdowns() {
   const dropdowns = document.querySelectorAll('.bookmarks-bar-dropdown');
   if (dropdowns.length > 0) {
     dropdowns.forEach(el => el.remove());
-    window.dispatchEvent(new Event('resize'));
   }
+  document.querySelectorAll('.bookmarks-bar-item.folder').forEach(el => {
+    el.classList.remove('dropdown-active');
+  });
+  window.dispatchEvent(new Event('resize'));
 }
 
 // Close bookmarks bar dropdowns on click outside
@@ -762,6 +771,7 @@ document.addEventListener('mousedown', (e) => {
 });
 
 export function renderBookmarks() {
+  closeAllBookmarksDropdowns();
   const bookmarksList = document.getElementById('bookmarks-list');
   if (!bookmarksList) return;
 
@@ -788,13 +798,7 @@ export function renderBookmarks() {
       const item = document.createElement('div');
       item.className = 'panel-item';
       
-      let domain = '';
-      try {
-        domain = new URL(b.url).hostname;
-      } catch (e) {
-        domain = b.url;
-      }
-      const faviconUrl = `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(domain)}`;
+      const faviconUrl = getBookmarkFaviconUrl(b);
 
       item.innerHTML = `
         <img class="panel-item-favicon" src="${escapeAttribute(faviconUrl)}" onerror="this.src='../../assets/logo.svg'">
@@ -903,13 +907,7 @@ export function renderBookmarksBar() {
     } else {
       item.className = 'bookmarks-bar-item';
       
-      let domain = '';
-      try {
-        domain = new URL(b.url).hostname;
-      } catch (e) {
-        domain = b.url;
-      }
-      const faviconUrl = `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(domain)}`;
+      const faviconUrl = getBookmarkFaviconUrl(b);
       
       item.innerHTML = `
         <img class="bookmarks-bar-favicon" src="${escapeAttribute(faviconUrl)}" onerror="this.src='../../assets/logo.svg'">
@@ -936,6 +934,7 @@ export function renderBookmarksBar() {
 }
 
 export function openBookmarkEditModal(bookmark) {
+  closeAllBookmarksDropdowns();
   state.editingBookmarkId = bookmark.id; // Store editing ID instead of URL!
   
   const nameInput = document.getElementById('bookmark-edit-name');

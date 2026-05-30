@@ -308,7 +308,8 @@ if (addBookmarkBtn) {
         id: generateId(),
         title: activeTab.title || activeTab.url,
         url: activeTab.url,
-        folderId: null
+        folderId: null,
+        favicon: activeTab.favicon || ''
       };
       const newBookmarksList = [...state.bookmarks, newBookmark];
       window.oslo.setBookmarks(newBookmarksList).then(updated => {
@@ -564,6 +565,15 @@ window.oslo.onTabUpdated((tabUpdate) => {
     if (tabUpdate.url !== undefined && tabUpdate.url !== oldUrl && !tabUpdate.url.includes('newtab.html') && !tabUpdate.url.startsWith('file://')) {
       window.oslo.logTelemetryEvent('page-navigate', { url: tabUpdate.url });
     }
+  }
+});
+
+window.oslo.onBookmarksUpdated((bookmarks) => {
+  state.bookmarks = bookmarks || [];
+  updateBookmarkIcon();
+  renderBookmarksBar();
+  if (bookmarksPanel?.classList.contains('open')) {
+    renderBookmarks();
   }
 });
 
@@ -915,9 +925,9 @@ function showAutocompleteSuggestions(text) {
   }
 
   window.oslo.getHistory().then(historyItems => {
-    const searchEngine = document.getElementById('settings-search-engine')?.value || 'google';
+    const searchEngine = document.getElementById('settings-search-engine')?.value || 'duckduckgo';
     const engineNames = { google: 'Google', duckduckgo: 'DuckDuckGo', bing: 'Bing', yahoo: 'Yahoo', yandex: 'Yandex', brave: 'Brave', ecosia: 'Ecosia', startpage: 'Startpage' };
-    const searchEngineName = engineNames[searchEngine] || 'Google';
+    const searchEngineName = engineNames[searchEngine] || 'DuckDuckGo';
 
     const suggestions = [];
     const commandMatches = getSmartCommands().filter(command => {
@@ -1736,7 +1746,7 @@ document.getElementById('btn-check-updates')?.addEventListener('click', () => {
       const modalVersion = document.getElementById('update-modal-version');
       const modalNotes = document.getElementById('update-modal-notes');
 
-      if (currentVersion) currentVersion.textContent = `v${info.currentVersion || '1.0.0-alpha.7'}`;
+      if (currentVersion) currentVersion.textContent = `v${info.currentVersion || '1.0.0-alpha.8'}`;
       if (modalVersion) modalVersion.textContent = `v${info.latestVersion}`;
       if (modalNotes) modalNotes.innerHTML = parseMarkdown(info.releaseNotes);
 
@@ -1779,7 +1789,7 @@ document.getElementById('btn-confirm-update')?.addEventListener('click', () => {
   const url = updateModal?.dataset.downloadUrl;
   const checksum = updateModal?.dataset.checksum || updateModal?.dataset.sha256 || '';
   const checksumAlgorithm = updateModal?.dataset.checksumAlgorithm || (checksum.length === 128 ? 'sha512' : 'sha256');
-  const version = (document.getElementById('update-modal-version')?.textContent || '1.0.0-alpha.7').replace(/^v/, '');
+  const version = (document.getElementById('update-modal-version')?.textContent || '1.0.0-alpha.8').replace(/^v/, '');
 
   if (!url) {
     window.oslo.openExternalLink('https://oslobrowser.com/download');
@@ -1866,7 +1876,7 @@ function autoCheckForUpdates() {
       const modalVersion = document.getElementById('update-modal-version');
       const modalNotes = document.getElementById('update-modal-notes');
 
-      if (currentVersion) currentVersion.textContent = `v${info.currentVersion || '1.0.0-alpha.7'}`;
+      if (currentVersion) currentVersion.textContent = `v${info.currentVersion || '1.0.0-alpha.8'}`;
       if (modalVersion) modalVersion.textContent = `v${info.latestVersion}`;
       if (modalNotes) modalNotes.innerHTML = parseMarkdown(info.releaseNotes);
 

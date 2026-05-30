@@ -1,5 +1,72 @@
 const { contextBridge, ipcRenderer, webFrame } = require('electron');
 
+function getPageHostname() {
+  try {
+    return window.location.hostname.toLowerCase();
+  } catch (e) {
+    return '';
+  }
+}
+
+function isGoogleSensitiveHost(hostname) {
+  const host = String(hostname || '').toLowerCase();
+  return host === 'google.com' || host.endsWith('.google.com') ||
+    /(^|\.)google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(host) ||
+    host === 'gstatic.com' || host.endsWith('.gstatic.com') ||
+    host === 'googleusercontent.com' || host.endsWith('.googleusercontent.com') ||
+    host === 'googleapis.com' || host.endsWith('.googleapis.com') ||
+    host === 'recaptcha.net' || host.endsWith('.recaptcha.net');
+}
+
+try {
+  if (!isGoogleSensitiveHost(getPageHostname())) {
+    const chromeVer = (navigator.userAgent.match(/Chrome\/(\d+)/) || ['', '148'])[1];
+    const scriptContent = `
+      try {
+        const ver = '${chromeVer}';
+        const brands = [
+          { brand: "Google Chrome", version: ver },
+          { brand: "Chromium", version: ver },
+          { brand: "Not-A.Brand", version: "24" }
+        ];
+        const uaData = {
+          brands: brands,
+          mobile: false,
+          platform: "Windows",
+          getHighEntropyValues: function(hints) {
+            return Promise.resolve({
+              brands: brands,
+              mobile: false,
+              platform: "Windows",
+              platformVersion: "15.0.0",
+              architecture: "x86",
+              model: "",
+              uaFullVersion: ver + ".0.0.0",
+              fullVersionList: brands.map(function(b) { return { brand: b.brand, version: b.version + ".0.0.0" }; })
+            });
+          },
+          toJSON: function() {
+            return { brands: brands, mobile: false, platform: "Windows" };
+          }
+        };
+        Object.defineProperty(navigator, 'userAgentData', {
+          get: function() { return uaData; },
+          configurable: true
+        });
+      } catch (e) {}
+    `;
+
+    const script = document.createElement('script');
+    script.textContent = scriptContent;
+    if (document.documentElement) {
+      document.documentElement.appendChild(script);
+      script.remove();
+    } else {
+      webFrame.executeJavaScript(scriptContent);
+    }
+  }
+} catch (e) {}
+
 // ─── COSMETIC FILTER CSS ────────────────────────────────────────────────────────
 const cosmeticFilterCSS = `
   [id*="google_ads"],
@@ -903,11 +970,8 @@ try {
   console.error('Failed to query ad blocker state:', e);
 }
 
-const hostname = window.location.hostname.toLowerCase();
-const bypassFingerprint = hostname === 'google.com' || hostname.endsWith('.google.com') ||
-  /(^|\.)google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(hostname) ||
-  hostname === 'recaptcha.net' || hostname.endsWith('.recaptcha.net') ||
-  hostname === 'gstatic.com' || hostname.endsWith('.gstatic.com');
+const hostname = getPageHostname();
+const bypassFingerprint = isGoogleSensitiveHost(hostname);
 
 if (fingerprintProtectionEnabled && (window.location.protocol === 'http:' || window.location.protocol === 'https:') && !bypassFingerprint) {
   // 1. Anti-fingerprinting shield (runs immediately at document_start in main world)
@@ -916,7 +980,7 @@ if (fingerprintProtectionEnabled && (window.location.protocol === 'http:' || win
 
 if (adBlockEnabled && (window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
   // 2. Generic ad blocker script (skip on Google domains to avoid breaking AI Mode/SGE)
-  const isGoogleDomain = /(^|\.)google(\.[a-z]{2,3}){1,2}$/.test(hostname) || hostname.endsWith('.gstatic.com');
+  const isGoogleDomain = isGoogleSensitiveHost(hostname);
   const isYouTubeDomain = hostname.includes('youtube.com') || hostname.includes('youtu.be');
   if (!isGoogleDomain) {
     webFrame.executeJavaScript(`(${runGenericAdBlocker.toString()})();`);
@@ -1168,6 +1232,11 @@ const osloApi = {
     const listener = (event, data) => callback(data);
     ipcRenderer.on('ui-tab-updated', listener);
     return () => ipcRenderer.removeListener('ui-tab-updated', listener);
+  },
+  onBookmarksUpdated: (callback) => {
+    const listener = (event, data) => callback(data);
+    ipcRenderer.on('ui-bookmarks-updated', listener);
+    return () => ipcRenderer.removeListener('ui-bookmarks-updated', listener);
   },
   onTabClosed: (callback) => {
     const listener = (event, tabId) => callback(tabId);

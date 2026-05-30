@@ -15,7 +15,7 @@ const UPDATE_STATE_FILE = 'pending-update.json';
 let activeDownloads = {}; // downloadId -> { item, win, name, total }
 
 const DEFAULT_SETTINGS = {
-  searchEngine: 'google',
+  searchEngine: 'duckduckgo',
   adblockEnabled: true,
   blockedCount: 0,
   httpsOnlyEnabled: false,
@@ -304,7 +304,9 @@ function cleanSessionUserAgent(sessionInstance) {
     const rawUa = sessionInstance.getUserAgent();
     const cleanUa = rawUa
       .replace(/Electron\/[0-9.]+\s?/g, '')
-      .replace(/oslobrowser\/[0-9.]+\s?/gi, '')
+      .replace(/oslo[- ]?browser\/[0-9a-z.-]+\s?/gi, '')
+      .replace(/oslobrowser\/[0-9a-z.-]+\s?/gi, '')
+      .replace(/oslo\/[0-9a-z.-]+\s?/gi, '')
       .trim();
     sessionInstance.setUserAgent(cleanUa);
   } catch (err) {
@@ -420,6 +422,127 @@ function syncNetworkPrivacyOptions() {
   adblock.setPrivacyOptions(getNetworkPrivacyOptions());
 }
 
+function getHostnameFromUrl(value) {
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch (error) {
+    return '';
+  }
+}
+
+function normalizeFaviconHost(hostname) {
+  return String(hostname || '').toLowerCase().replace(/^www\./, '');
+}
+
+function normalizeFaviconUrl(value) {
+  try {
+    const parsed = new URL(value);
+    parsed.hash = '';
+    parsed.search = '';
+    parsed.pathname = parsed.pathname.replace(/\/$/, '') || '/';
+    const port = parsed.port ? `:${parsed.port}` : '';
+    return `${parsed.protocol}//${parsed.hostname.toLowerCase()}${port}${parsed.pathname}`;
+  } catch (error) {
+    return '';
+  }
+}
+
+function getGoogleDocsAppKey(value) {
+  try {
+    const parsed = new URL(value);
+    if (parsed.hostname.toLowerCase() !== 'docs.google.com') return '';
+
+    const app = parsed.pathname.split('/').filter(Boolean)[0] || '';
+    const knownApps = new Set(['document', 'spreadsheets', 'presentation', 'forms', 'drawings']);
+    return knownApps.has(app) ? `google-docs-app:${app}` : '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function getCachedFaviconForUrl(url) {
+  const hostname = getHostnameFromUrl(url);
+  if (!hostname) return '';
+
+  const cache = faviconCacheStore.get('cache') || {};
+  const normalizedUrl = normalizeFaviconUrl(url);
+  const googleDocsAppKey = getGoogleDocsAppKey(url);
+  if (normalizedUrl && cache[normalizedUrl]) return cache[normalizedUrl];
+  if (googleDocsAppKey) return cache[googleDocsAppKey] || '';
+
+  return cache[hostname] || cache[normalizeFaviconHost(hostname)] || '';
+}
+
+function cacheFaviconForUrl(url, favicon) {
+  const hostname = getHostnameFromUrl(url);
+  if (!hostname || !favicon) return;
+
+  const cache = faviconCacheStore.get('cache') || {};
+  const normalizedUrl = normalizeFaviconUrl(url);
+  const googleDocsAppKey = getGoogleDocsAppKey(url);
+  if (normalizedUrl) cache[normalizedUrl] = favicon;
+  if (googleDocsAppKey) {
+    cache[googleDocsAppKey] = favicon;
+  } else {
+    cache[hostname] = favicon;
+    cache[normalizeFaviconHost(hostname)] = favicon;
+  }
+  faviconCacheStore.set('cache', cache);
+}
+
+function hydrateBookmarkFavicons(bookmarks) {
+  let changed = false;
+  const hydrated = (bookmarks || []).map(bookmark => {
+    if (!bookmark || bookmark.isFolder || bookmark.favicon) return bookmark;
+
+    const favicon = getCachedFaviconForUrl(bookmark.url);
+    if (!favicon) return bookmark;
+
+    changed = true;
+    return { ...bookmark, favicon };
+  });
+
+  return { bookmarks: hydrated, changed };
+}
+
+function updateBookmarkFaviconsForUrl(url, favicon) {
+  const hostname = normalizeFaviconHost(getHostnameFromUrl(url));
+  if (!hostname || !favicon) return;
+
+  const normalizedUrl = normalizeFaviconUrl(url);
+  const googleDocsAppKey = getGoogleDocsAppKey(url);
+  const bookmarks = bookmarksStore.get('bookmarks') || [];
+  let changed = false;
+  const updated = bookmarks.map(bookmark => {
+    if (!bookmark || bookmark.isFolder || bookmark.favicon === favicon) return bookmark;
+
+    const bookmarkUrl = normalizeFaviconUrl(bookmark.url);
+    if (bookmarkUrl && normalizedUrl && bookmarkUrl === normalizedUrl) {
+      changed = true;
+      return { ...bookmark, favicon };
+    }
+
+    if (googleDocsAppKey) {
+      if (getGoogleDocsAppKey(bookmark.url) !== googleDocsAppKey) return bookmark;
+      changed = true;
+      return { ...bookmark, favicon };
+    }
+
+    const bookmarkHost = normalizeFaviconHost(getHostnameFromUrl(bookmark.url));
+    if (bookmarkHost !== hostname) return bookmark;
+
+    changed = true;
+    return { ...bookmark, favicon };
+  });
+
+  if (changed) {
+    bookmarksStore.set('bookmarks', updated);
+    windows.forEach(win => {
+      sendToUI(win, 'ui-bookmarks-updated', updated);
+    });
+  }
+}
+
 function createMainWindow() {
   const win = new BrowserWindow({
     width: 1200,
@@ -512,19 +635,16 @@ function setupViewListeners(tab, view, isSplitSide) {
   });
 
   wc.on('page-favicon-updated', (event, favicons) => {
-    if (!isSplitSide && favicons && favicons.length > 0) {
-      tab.favicon = favicons[0];
-      sendToUI(getWin(), 'ui-tab-updated', { id: tabId, favicon: favicons[0] });
+    if (!favicons || favicons.length === 0) return;
 
-      // Save to cache
-      try {
-        const domain = new URL(tab.url).hostname;
-        if (domain) {
-          const cache = faviconCacheStore.get('cache') || {};
-          cache[domain] = favicons[0];
-          faviconCacheStore.set('cache', cache);
-        }
-      } catch (e) { }
+    const favicon = favicons[0];
+    const currentUrl = wc.getURL() || (isSplitSide ? tab.splitUrl : tab.url);
+    cacheFaviconForUrl(currentUrl, favicon);
+    updateBookmarkFaviconsForUrl(currentUrl, favicon);
+
+    if (!isSplitSide) {
+      tab.favicon = favicon;
+      sendToUI(getWin(), 'ui-tab-updated', { id: tabId, favicon });
     }
   });
 
@@ -542,10 +662,7 @@ function setupViewListeners(tab, view, isSplitSide) {
       try {
         const domain = new URL(newUrl).hostname;
         if (domain) {
-          const cache = faviconCacheStore.get('cache') || {};
-          if (cache[domain]) {
-            newFavicon = cache[domain];
-          }
+          newFavicon = getCachedFaviconForUrl(newUrl);
         }
       } catch (e) { }
       tab.favicon = newFavicon;
@@ -636,7 +753,9 @@ function setupViewListeners(tab, view, isSplitSide) {
       return { action: 'deny' };
     }
 
-    if (details.features) {
+    const referrerUrl = details.referrer ? details.referrer.url : undefined;
+    const isGoogleAuthPopup = adblock.isGoogleAuth(details.url, referrerUrl);
+    if (details.features || isGoogleAuthPopup) {
       return {
         action: 'allow',
         overrideBrowserWindowOptions: {
@@ -645,7 +764,9 @@ function setupViewListeners(tab, view, isSplitSide) {
             preload: path.join(__dirname, '../preload.js'),
             contextIsolation: true,
             nodeIntegration: false,
-            nodeIntegrationInSubFrames: true
+            nodeIntegrationInSubFrames: true,
+            session: wc.session,
+            plugins: true
           }
         }
       };
@@ -895,15 +1016,7 @@ function createTab(url, isIncognito = false, space = 'Genel', winId = null, tabI
 
   // Precheck favicon cache
   if (url) {
-    try {
-      const domain = new URL(url).hostname;
-      if (domain) {
-        const cache = faviconCacheStore.get('cache') || {};
-        if (cache[domain]) {
-          tab.favicon = cache[domain];
-        }
-      }
-    } catch (e) { }
+    tab.favicon = getCachedFaviconForUrl(url) || tab.favicon;
   }
 
   setupTabListeners(tab);
@@ -1201,7 +1314,7 @@ function formatUrl(val) {
   }
 
   // Default search query
-  const engine = settingsStore.get('searchEngine') || 'google';
+  const engine = settingsStore.get('searchEngine') || 'duckduckgo';
   const searchEngines = {
     google: 'https://www.google.com/search?q=',
     duckduckgo: 'https://duckduckgo.com/?q=',
@@ -1212,7 +1325,7 @@ function formatUrl(val) {
     ecosia: 'https://www.ecosia.org/search?q=',
     startpage: 'https://www.startpage.com/do/dsearch?query='
   };
-  const searchUrl = searchEngines[engine] || searchEngines.google;
+  const searchUrl = searchEngines[engine] || searchEngines.duckduckgo;
   return searchUrl + encodeURIComponent(url);
 }
 
@@ -1295,6 +1408,16 @@ function isKnownSettingKey(key) {
   return Object.prototype.hasOwnProperty.call(DEFAULT_SETTINGS, key);
 }
 
+function isValidSettingValue(key, value) {
+  if (!isKnownSettingKey(key)) return false;
+
+  const defaultValue = DEFAULT_SETTINGS[key];
+  if (typeof defaultValue === 'boolean') return typeof value === 'boolean';
+  if (typeof defaultValue === 'number') return typeof value === 'number' && Number.isFinite(value);
+  if (typeof defaultValue === 'string') return typeof value === 'string';
+  return typeof value === typeof defaultValue;
+}
+
 function saveSession() {
   if (!settingsStore.get('sessionRestoreEnabled')) {
     sessionStore.set('tabs', []);
@@ -1336,8 +1459,6 @@ function setupDownloadListener(sessionInstance, isIncognito = false) {
     const fileExtension = path.extname(fileName).replace('.', '').toLowerCase();
     const dangerousMode = settingsStore.get('dangerousDownloadsProtection') || 'warn';
 
-    console.log(`[Download Manager] will-download event triggered for file: ${fileName}, size: ${totalBytes} bytes`);
-
     let win = null;
     try {
       win = BrowserWindow.fromWebContents(webContents);
@@ -1376,8 +1497,6 @@ function setupDownloadListener(sessionInstance, isIncognito = false) {
       }
     }
     const defaultPath = path.join(downloadsDir, fileName);
-
-    console.log(`[Download Manager] Save dialog default path: ${defaultPath}`);
 
     const promptUser = settingsStore.get('downloadPromptEnabled') === true;
     if (promptUser) {
@@ -1435,7 +1554,6 @@ function setupDownloadListener(sessionInstance, isIncognito = false) {
 
     item.on('updated', (event, state) => {
       if (state === 'interrupted') {
-        console.log(`[Download Manager] Download interrupted: ${fileName}`);
         sendToUI(safeWin, 'download-progress', {
           id: downloadId,
           name: fileName,
@@ -1456,7 +1574,6 @@ function setupDownloadListener(sessionInstance, isIncognito = false) {
     });
 
     item.once('done', (event, state) => {
-      console.log(`[Download Manager] Download done state: ${state} for: ${fileName}`);
       delete activeDownloads[downloadId];
       const dlEntry = {
         id: downloadId,
@@ -1888,7 +2005,11 @@ ipcMain.on('open-external', (event, url) => {
 // Storage and Preferences IPC handlers
 ipcMain.handle('bookmarks-get', (event) => {
   assertMainUiSender(event);
-  return bookmarksStore.get('bookmarks');
+  const { bookmarks, changed } = hydrateBookmarkFavicons(bookmarksStore.get('bookmarks') || []);
+  if (changed) {
+    bookmarksStore.set('bookmarks', bookmarks);
+  }
+  return bookmarks;
 });
 
 function buildNativeBookmarksMenu(bookmarks, folderId, win) {
@@ -1945,15 +2066,20 @@ ipcMain.on('show-bookmarks-folder-menu', (event, { folderId, x, y }) => {
 
 ipcMain.handle('bookmarks-set', (event, bookmarks) => {
   assertMainUiSender(event);
-  bookmarksStore.set('bookmarks', bookmarks);
-  return bookmarks;
+  const { bookmarks: hydrated } = hydrateBookmarkFavicons(bookmarks || []);
+  bookmarksStore.set('bookmarks', hydrated);
+  return hydrated;
 });
 
 ipcMain.handle('bookmarks-add', (event, bookmark) => {
   assertMainUiSender(event);
-  const bookmarks = bookmarksStore.get('bookmarks');
-  if (!bookmarks.some(b => b.url === bookmark.url)) {
-    bookmarksStore.push('bookmarks', bookmark);
+  const bookmarks = bookmarksStore.get('bookmarks') || [];
+  const nextBookmark = bookmark && !bookmark.favicon
+    ? { ...bookmark, favicon: getCachedFaviconForUrl(bookmark.url) || '' }
+    : bookmark;
+  if (!nextBookmark || !nextBookmark.url) return bookmarks;
+  if (!bookmarks.some(b => b.url === nextBookmark.url)) {
+    bookmarksStore.push('bookmarks', nextBookmark);
   }
   return bookmarksStore.get('bookmarks');
 });
@@ -1970,7 +2096,9 @@ ipcMain.handle('bookmarks-update', (event, { oldUrl, bookmark }) => {
   const index = bookmarks.findIndex(b => b.url === oldUrl);
   if (index !== -1) {
     // If the URL changed, make sure we don't collide with an existing one unless it is the same bookmark
-    bookmarks[index] = bookmark;
+    bookmarks[index] = bookmark && !bookmark.favicon
+      ? { ...bookmark, favicon: getCachedFaviconForUrl(bookmark.url) || '' }
+      : bookmark;
     bookmarksStore.set('bookmarks', bookmarks);
   }
   return bookmarksStore.get('bookmarks');
@@ -2860,12 +2988,16 @@ ipcMain.handle('settings-import', async (event) => {
       throw new Error('Geçersiz ayar dosyası formatı.');
     }
 
-    // Apply settings key-by-key
-    for (const [key, value] of Object.entries(imported)) {
-      if (key in DEFAULT_SETTINGS) {
-        settingsStore.set(key, value);
-        applySetting(key, value);
+    const importedSettings = Object.entries(imported).filter(([key]) => isKnownSettingKey(key));
+    for (const [key, value] of importedSettings) {
+      if (!isValidSettingValue(key, value)) {
+        throw new Error(`Invalid setting value: ${key}`);
       }
+    }
+
+    for (const [key, value] of importedSettings) {
+      settingsStore.set(key, value);
+      applySetting(key, value);
     }
 
     return settingsStore.data;
@@ -3215,14 +3347,11 @@ ipcMain.on('login-form-submitted', (event, data) => {
   }
 
   const origin = getSenderWebOrigin(event);
-  console.log('[PasswordManager] login-form-submitted received:', JSON.stringify({ origin, username: data?.username, hasPassword: !!data?.password }));
 
   if (!settingsStore.get('savePasswordsEnabled')) {
-    console.log('[PasswordManager] savePasswordsEnabled is disabled, ignoring.');
     return;
   }
   if (!origin || !data?.username || !data?.password) {
-    console.log('[PasswordManager] Missing data fields, ignoring.');
     return;
   }
 
@@ -3231,30 +3360,24 @@ ipcMain.on('login-form-submitted', (event, data) => {
 
   // If it doesn't exist or has a different password, prompt to save/update
   if (!existing || revealPassword(existing) !== data.password) {
-    console.log('[PasswordManager] Credential is new or updated, looking for window to show prompt...');
-
     // Try to find the tab by matching event.sender to tab.view.webContents
     let win = null;
 
     if (tab && tab.windowId) {
       win = BrowserWindow.fromId(tab.windowId);
-      console.log('[PasswordManager] Found tab via direct match, windowId:', tab.windowId);
     }
 
     // Fallback: use BrowserWindow.fromWebContents which traverses parent chain
     if (!win) {
       win = BrowserWindow.fromWebContents(event.sender);
-      console.log('[PasswordManager] Fallback: BrowserWindow.fromWebContents result:', win ? win.id : 'null');
     }
 
     // Last resort: use the first available window
     if (!win && windows.size > 0) {
       win = Array.from(windows)[0];
-      console.log('[PasswordManager] Last resort: using first window, id:', win.id);
     }
 
     if (win) {
-      console.log('[PasswordManager] Sending ui-password-save-prompt to window', win.id);
       sendToUI(win, 'ui-password-save-prompt', {
         origin,
         username: data.username,
@@ -3262,10 +3385,8 @@ ipcMain.on('login-form-submitted', (event, data) => {
         isUpdate: !!existing
       });
     } else {
-      console.log('[PasswordManager] ERROR: No window found to show prompt!');
+      console.warn('[PasswordManager] No window available to show save prompt.');
     }
-  } else {
-    console.log('[PasswordManager] Credential already saved with same password, skipping.');
   }
 });
 
@@ -3418,11 +3539,8 @@ function optimizePerformanceForHardware() {
   const os = require('os');
   const totalMemoryGB = os.totalmem() / (1024 * 1024 * 1024);
   const cpuCores = os.cpus().length;
-  
-  console.log(`[HardwareOptimizer] CPU Cores: ${cpuCores}, Total Memory: ${totalMemoryGB.toFixed(2)} GB`);
-  
+
   if (settingsStore.get('hardwareAutoOptimized')) {
-    console.log('[HardwareOptimizer] System has already been optimized for hardware.');
     return;
   }
   
@@ -3430,8 +3548,6 @@ function optimizePerformanceForHardware() {
   const isOldHardware = totalMemoryGB <= 8.5 || cpuCores <= 4;
   
   if (isOldHardware) {
-    console.log('[HardwareOptimizer] Low-end/old hardware detected! Auto-optimizing performance settings...');
-    
     // Enable performance optimizations
     settingsStore.set('sleepTabsEnabled', true);
     settingsStore.set('sleepTabsTimeout', 15);
@@ -3457,8 +3573,6 @@ function optimizePerformanceForHardware() {
         console.error('Failed to log hardware optimization telemetry event:', e);
       }
     }
-  } else {
-    console.log('[HardwareOptimizer] Modern hardware detected. Skipping optimizations.');
   }
   
   settingsStore.set('hardwareAutoOptimized', true);
@@ -3529,14 +3643,9 @@ app.whenReady().then(() => {
   adblock.setAdBlockEnabled(settingsStore.get('adblockEnabled'));
   adblock.setHttpsOnlyEnabled(settingsStore.get('httpsOnlyEnabled') || false);
   syncNetworkPrivacyOptions();
-  adblock.setupAdBlocker(session.defaultSession, 'default');
-
-  // Set up downloads for default session
-  setupDownloadListener(session.defaultSession);
 
   // Sync adblocker callback
   adblock.setOnBlockCallback((url) => {
-    console.log('[Adblock Blocked]', url);
     const current = settingsStore.get('blockedCount') || 0;
     settingsStore.set('blockedCount', current + 1);
     windows.forEach(win => {
@@ -3547,92 +3656,8 @@ app.whenReady().then(() => {
   // Create incognito session
   incognitoSession = session.fromPartition('incognito');
 
-  // Clean User Agents to resemble standard Chrome (removing Electron/App references)
-  const cleanUserAgent = (sessionInstance) => {
-    try {
-      const rawUa = sessionInstance.getUserAgent();
-      const cleanUa = rawUa
-        .replace(/Electron\/[0-9.]+\s?/g, '')
-        .replace(/oslobrowser\/[0-9.]+\s?/gi, '')
-        .trim();
-      sessionInstance.setUserAgent(cleanUa);
-    } catch (err) {
-      console.error('Failed to clean User Agent:', err);
-    }
-  };
-  cleanUserAgent(session.defaultSession);
-  cleanUserAgent(incognitoSession);
-
-  adblock.setupAdBlocker(incognitoSession, 'incognito');
-  setupDownloadListener(incognitoSession, true);
-
-  const setupPermissionHandler = (sessionInstance) => {
-    sessionInstance.setPermissionRequestHandler((webContents, permission, callback, details) => {
-      const requestingUrl = details.requestingUrl || webContents.getURL();
-      let domain = '';
-      try {
-        domain = new URL(requestingUrl).hostname;
-      } catch (e) {
-        domain = requestingUrl;
-      }
-
-      const resolvePermissionType = () => {
-        if (permission === 'notifications') return 'notifications';
-        if (permission === 'geolocation') return 'location';
-        if (permission === 'clipboard-read') return 'clipboard';
-        if (permission === 'media') {
-          const types = details.mediaTypes || [];
-          if (types.includes('video')) return 'camera';
-          if (types.includes('audio')) return 'microphone';
-          return 'camera';
-        }
-        return permission;
-      };
-
-      const permissionType = resolvePermissionType();
-      const defaultSettingMap = {
-        notifications: 'permissionNotifications',
-        camera: 'permissionCamera',
-        microphone: 'permissionMicrophone',
-        location: 'permissionLocation',
-        clipboard: 'permissionClipboard'
-      };
-
-      if (defaultSettingMap[permissionType]) {
-        const saved = permissionsStore.get('permissions') || {};
-        const decision = saved[`${domain}:${permissionType}`];
-
-        if (decision !== undefined) {
-          return callback(decision);
-        }
-
-        const defaultDecision = settingsStore.get(defaultSettingMap[permissionType]) || 'ask';
-        if (defaultDecision === 'allow') return callback(true);
-        if (defaultDecision === 'block') return callback(false);
-
-        // No decision saved, show prompt in the active BrowserWindow
-        let win = BrowserWindow.fromWebContents(webContents);
-        if (!win) {
-          const tab = Object.values(tabs).find(item => item.view && item.view.webContents === webContents);
-          if (tab && tab.windowId) {
-            win = BrowserWindow.fromId(tab.windowId);
-          }
-        }
-        if (win) {
-          const reqId = ++permissionRequestId;
-          pendingPermissionRequests[reqId] = { callback, domain, permission: permissionType };
-          sendToUI(win, 'ui-permission-request', { id: reqId, domain, permission: permissionType });
-        } else {
-          callback(false);
-        }
-      } else {
-        callback(true);
-      }
-    });
-  };
-
-  setupPermissionHandler(session.defaultSession);
-  setupPermissionHandler(incognitoSession);
+  configureProfileSession(session.defaultSession, 'default', false);
+  configureProfileSession(incognitoSession, 'incognito', true);
 
   createMainWindow();
 
@@ -3731,7 +3756,8 @@ ipcMain.handle('bookmarks-export', async (event) => {
         writeFolder(b.id, indent + 4);
         html += `${spaceStr}</DL><p>\n`;
       } else {
-        html += `${spaceStr}<DT><A HREF="${escapeHtmlText(b.url)}" ADD_DATE="0">${escapeHtmlText(b.title)}</A>\n`;
+        const faviconAttr = b.favicon ? ` ICON="${escapeHtmlText(b.favicon)}"` : '';
+        html += `${spaceStr}<DT><A HREF="${escapeHtmlText(b.url)}" ADD_DATE="0"${faviconAttr}>${escapeHtmlText(b.title)}</A>\n`;
       }
     });
   }
@@ -3762,6 +3788,13 @@ ipcMain.handle('bookmarks-import', async (event) => {
   const lines = html.split('\n');
   const bookmarks = bookmarksStore.get('bookmarks') || [];
   const generateId = () => 'b_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  const getAttribute = (input, name) => {
+    const match = input.match(new RegExp(`${name}\\s*=\\s*"([^"]*)"`, 'i'));
+    return match ? match[1] : '';
+  };
+  const isUsableFavicon = (value) => {
+    return /^data:image\//i.test(value) || /^https?:\/\//i.test(value);
+  };
 
   let folderStack = [null];
   let currentParentId = null;
@@ -3797,16 +3830,22 @@ ipcMain.handle('bookmarks-import', async (event) => {
       return;
     }
 
-    const aMatch = line.match(/<A HREF="([^"]+)"[^>]*>([^<]*)<\/A>/i);
+    const aMatch = line.match(/<A\b([^>]*)>([^<]*)<\/A>/i);
     if (aMatch) {
-      const url = aMatch[1];
+      const attrs = aMatch[1] || '';
+      const url = getAttribute(attrs, 'HREF');
       const title = aMatch[2] || url;
-      if (!bookmarks.some(b => b.url === url && b.folderId === currentParentId)) {
+      const importedFavicon = getAttribute(attrs, 'ICON');
+      const cachedFavicon = getCachedFaviconForUrl(url);
+      const favicon = isUsableFavicon(importedFavicon) ? importedFavicon : cachedFavicon;
+
+      if (url && !bookmarks.some(b => b.url === url && b.folderId === currentParentId)) {
         bookmarks.push({
           id: generateId(),
           title: title,
           url: url,
-          folderId: currentParentId
+          folderId: currentParentId,
+          favicon: favicon || ''
         });
         linksAdded++;
       }

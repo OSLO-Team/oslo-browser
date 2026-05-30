@@ -69,7 +69,6 @@ function initializeBlocker() {
         read: fs.promises.readFile,
         write: fs.promises.writeFile,
       });
-      console.log('[Adblock] Ghostery blocker successfully initialized!');
     } catch (e) {
       console.error('[Adblock] Failed to initialize Ghostery blocker:', e);
       try {
@@ -116,6 +115,74 @@ function getHttpsOnlyExceptions() {
 function isHttpsOnlyException(hostname) {
   const host = String(hostname || '').toLowerCase();
   return getHttpsOnlyExceptions().some(item => host === item || host.endsWith('.' + item));
+}
+
+function getHostnameFromValue(value) {
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch (e) {
+    return String(value || '').replace(/^https?:\/\//i, '').split('/')[0].toLowerCase();
+  }
+}
+
+function getUrlParts(value) {
+  try {
+    const parsed = new URL(value);
+    return {
+      hostname: parsed.hostname.toLowerCase(),
+      pathname: parsed.pathname || '',
+      href: parsed.href || ''
+    };
+  } catch (e) {
+    return {
+      hostname: getHostnameFromValue(value),
+      pathname: '',
+      href: String(value || '')
+    };
+  }
+}
+
+function isGoogleTldHost(hostname, prefix = '') {
+  const host = String(hostname || '').toLowerCase();
+  if (!prefix) {
+    return /(^|\.)google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(host);
+  }
+  const escapedPrefix = prefix.replace(/\./g, '\\.') + '\\.';
+  return new RegExp(`^${escapedPrefix}google\\.[a-z]{2,3}(\\.[a-z]{2})?$`).test(host);
+}
+
+function isGoogleAuthUrl(value) {
+  const { hostname, pathname, href } = getUrlParts(value);
+  if (!hostname) return false;
+
+  const authHosts = [
+    'accounts.youtube.com',
+    'apis.google.com',
+    'oauth2.googleapis.com',
+    'oauthaccountmanager.googleapis.com',
+    'ssl.gstatic.com',
+    'www.gstatic.com',
+    'accounts.gstatic.com',
+    'clients1.google.com',
+    'clients2.google.com',
+    'clients3.google.com',
+    'clients4.google.com',
+    'clients5.google.com',
+    'clients6.google.com'
+  ];
+
+  if (isGoogleTldHost(hostname, 'accounts') || isGoogleTldHost(hostname, 'myaccount') ||
+      authHosts.some(host => hostname === host || hostname.endsWith('.' + host)) ||
+      hostname === 'googleusercontent.com' || hostname.endsWith('.googleusercontent.com')) {
+    return true;
+  }
+
+  if (isGoogleTldHost(hostname) || hostname.endsWith('.google.com')) {
+    return /\/(?:signin|servicelogin|accountchooser|interactivelogin|o\/oauth2|oauth)/i.test(pathname) ||
+      /[?&](?:continue|redirect_uri)=/i.test(href) && /accounts\.google|oauth/i.test(href);
+  }
+
+  return false;
 }
 
 function getBaseDomain(hostname) {
@@ -230,10 +297,19 @@ function isVideoProvider(host) {
          lowerHost.includes('turbovid');
 }
 
+function isGoogleAuth(urlStr, initiatorStr) {
+  return isGoogleAuthUrl(urlStr) || isGoogleAuthUrl(initiatorStr);
+}
+
 // ─── MAIN BLOCKING DECISION ─────────────────────────────────────────────────────
 function shouldBlock(url, resourceType, initiator, referrer) {
   try {
     const lowerUrl = url.toLowerCase();
+
+    // 0. NEVER block Google Auth requests
+    if (isGoogleAuth(url, initiator || referrer)) {
+      return false;
+    }
 
     // Bypass local protocols
     if (lowerUrl.startsWith('oslo://') || lowerUrl.startsWith('file://') ||
@@ -359,8 +435,31 @@ function setupTrackingHeaderStripping(sessionInstance, sessionKind = 'default') 
           (sessionKind === 'incognito' && privacyOptions.incognitoBlockThirdPartyCookies !== false);
         const isTracker = isTrackerDomain(hostname) || isBlockedDomain(hostname);
 
+        const isAuthGoogle = isGoogleAuth(details.url, details.initiator || details.referrer);
+        if (isAuthGoogle) {
+          callback({});
+          return;
+        }
+
         for (const [key, value] of Object.entries(details.requestHeaders || {})) {
           const lowerKey = key.toLowerCase();
+
+          // Rewrite sec-ch-ua headers to include "Google Chrome" brand.
+          // Electron/Chromium omits it, which some sites use to reject sign-in.
+          if (lowerKey === 'sec-ch-ua') {
+            const match = String(value).match(/"Chromium";v="(\d+)"/);
+            const ver = match ? match[1] : '148';
+            newHeaders[key] = `"Google Chrome";v="${ver}", "Chromium";v="${ver}", "Not-A.Brand";v="24"`;
+            modified = true;
+            continue;
+          }
+          if (lowerKey === 'sec-ch-ua-full-version-list') {
+            const match = String(value).match(/"Chromium";v="([^"]+)"/);
+            const ver = match ? match[1] : '148.0.0.0';
+            newHeaders[key] = `"Google Chrome";v="${ver}", "Chromium";v="${ver}", "Not-A.Brand";v="24.0.0.0"`;
+            modified = true;
+            continue;
+          }
 
           if (lowerKey === 'cookie' && (cookiePolicy === 'block-all' || (isThirdParty && shouldBlockThirdPartyCookie))) {
             modified = true;
@@ -390,7 +489,7 @@ function setupTrackingHeaderStripping(sessionInstance, sessionKind = 'default') 
 
           if ((privacyOptions.trackingProtectionLevel !== 'off' || adBlockEnabled) &&
               isThirdParty && isTracker &&
-              (lowerKey === 'x-client-data' || lowerKey === 'sec-ch-ua-full-version-list')) {
+              lowerKey === 'x-client-data') {
             modified = true;
             continue;
           }
@@ -424,6 +523,12 @@ function setupResponseHeaderManipulation(sessionInstance, sessionKind = 'default
       try {
         const parsed = new URL(details.url);
         const hostname = parsed.hostname.toLowerCase();
+
+        if (isGoogleAuth(details.url, details.initiator || details.referrer)) {
+          callback({});
+          return;
+        }
+
         const isYouTube = hostname.includes('youtube.com') || hostname.includes('youtu.be');
         const { isThirdParty } = getRequestContext(details);
         const isTracker = isTrackerDomain(hostname) || isBlockedDomain(hostname);
@@ -556,5 +661,6 @@ module.exports = {
   isAdBlockEnabled,
   setOnBlockCallback,
   setHttpsOnlyEnabled,
-  setPrivacyOptions
+  setPrivacyOptions,
+  isGoogleAuth
 };
